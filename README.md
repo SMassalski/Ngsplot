@@ -1,4 +1,4 @@
-# NGSplot
+# PMGPLOT
 
 ## Dependancies
 1. Python 3.6.1
