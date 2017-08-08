@@ -1,6 +1,6 @@
 # MGPLOT
----
-MGPLOT is a script for visualizing 
+
+MGPLOT is a script for visualizing metagenomic data.
 
 
 ## Dependencies ##
@@ -12,15 +12,15 @@ MGPLOT is a script for visualizing
 
 # Usage #
   ---
-1.[Input Options](https://github.com/SMassalski/mgplot#input-options)
+1. [Input Options](https://github.com/SMassalski/mgplot#input-options)
 
-2.[Plot Options](https://github.com/SMassalski/mgplot#plot-options)
+2. [Plot Options](https://github.com/SMassalski/mgplot#plot-options)
 
-3.[Region Declaration](https://github.com/SMassalski/mgplot#region-declaration)
+3. [Region Declaration](https://github.com/SMassalski/mgplot#region-declaration)
 
-4.[Output](https://github.com/SMassalski/mgplot#output)
+4. [Output](https://github.com/SMassalski/mgplot#output)
 
-5.[Detailed Feature Selection](https://github.com/SMassalski/mgplot#detailed-feature-selection)
+5. [Detailed Feature Selection](https://github.com/SMassalski/mgplot#detailed-feature-selection)
 ## Input Options 
 | Argument              | Description                          | Default  | Values   |
 |:---------------------:|:------------------------------------:|:--------:|:--------:|
@@ -32,6 +32,8 @@ MGPLOT is a script for visualizing
 |`-rp ` `--replot`| numpy binary file containing a matrix to be replotted |   None   | file name or path |
 
 **Input files cannot have headers.**
+
+**Console arguments override configuration file arguments**
 
 For the configuration file to be read correctly it should have only two columns separated by TAB. In each row the first column is the argument, the second is the value.
 When an argument can take multiple values such as in `--chrmomit` and `-gomit` the values should be in the second column separated by commas.
@@ -48,6 +50,7 @@ scorerange  1000,10000
 The `--gindx` sequence indicates in which columns in the `.bed` file the script will find information about chromosome name, start position, end position, feature name, strand respectively. 
 
 `--replot` allows you to plot previously saved data (using `--matfile`) without reading other input files again, with different plot settings. When using replot the _region_ and _flank_ arguments must remain unchanged.
+
 
 ## Plot Options
 | Argument | Description| Default  | Values   |
@@ -116,7 +119,10 @@ The `--matfile` argument allows you to save a matrix for replotting data without
 |`-of`<br> `--ofirst`|whether to use only the first occurence of a region in a bed file|False|no value in console,<br> 'true' or 'false' in config file |
 
 The `--gomit` argument makes the script omit all genomic features that **begin with** one of the given strings.
+
 The `--nbest` argument selects genes after chromosomes and genes are excluded.
+
+When using `--scorerange` the first value should be smaller than the other.
 
 # Examples
 ---
