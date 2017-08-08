@@ -1,4 +1,7 @@
-# PMGPLOT
+# MGPLOT
+---
+MGPLOT is a script for visualizing 
+
 
 ## Dependencies ##
    ---
@@ -9,7 +12,11 @@
 
 # Usage #
   ---
-
+1.[Input Options](https://github.com/SMassalski/mgplot#input-options)
+2.[Plot Options](https://github.com/SMassalski/mgplot#plot-options)
+3.[Region Declaration](https://github.com/SMassalski/mgplot#region-declaration)
+4.[Output](https://github.com/SMassalski/mgplot#output)
+5.[Detailed Feature Selection](https://github.com/SMassalski/mgplot#detailed-feature-selection)
 ## Input Options 
 | Argument              | Description                          | Default  | Values   |
 |:---------------------:|:------------------------------------:|:--------:|:--------:|
@@ -60,7 +67,7 @@ When `--smooth` is set to true the curve is smoothed with a spline with a smooth
 Example average profile with `--smooth` set to 0.08:
 ![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/avgprof_example3a.png "smooth = 0.08")
 
-Example average profile with `--smooth` set to 0:
+The same average profile with `--smooth` set to 0:
 ![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/avgprof_example3b.png "smooth = 0")
 
 Matplotlib colormap names can be found [here.](https://matplotlib.org/users/colormaps.html)
@@ -70,14 +77,16 @@ Matplotlib colormap names can be found [here.](https://matplotlib.org/users/colo
 Example heatmap with `--hnorm` set to 'lin':
 ![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/heatmap_example2c.png "hnorm = lin")
 
-Example heatmap with `--hnorm` set to 'log':
+The same heatmap with `--hnorm` set to 'log':
 ![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/heatmap_example2b.png "hnorm = log")
 
 ## Region Declaration
 | Argument | Description| Default  | Values   |
 |:--------:|:----------:|:--------:|:--------:|
-|`-r` `--region`| genomic region to be plotted|'TSS'| 'TSS' , 'TSE' , 'genebody'|
+|`-r` `--region`| location of the genomic regions to be plotted|'TSS'| 'TSS' , 'TSE' , 'genebody'|
 |`-fl` `--flank` |length of the flanking regions|1000| positive integer|
+
+The script will generate plots of the selected location with surrounding flanking regions.
 
 When `--region` is set to genebody the regions will be normalized with a cubic spline to have length equal to the value of `--flank`.
 
@@ -92,17 +101,19 @@ When `--region` is set to genebody the regions will be normalized with a cubic s
  
 The `--matfile` argument allows you to save a matrix for replotting data without reading other input files again. The matrix is saved in a numpy binary file. A `.npy` extension will be appended if the provided filename does not have one.
  
- ## Detailed Gene Selection
+ ## Detailed Feature Selection
 | Argument | Description| Default  | Values   |
 |:--------:|:----------:|:--------:|:--------:|
 |`-co` <br> `--chrmomit`|chromosomes to be omitted|None|chromosome names|
 |`-only`<br> `--chrmonly`|chromosomes to be considered exclusively|None|chromosome names|
-|`--go` <br>`--gomit`|genes to be omitted|None|first characters of gene names|
-|`-nb`<br> `--nbest`|number of genes with the best scores to be considered (tsv files)|None|positive integer|
-|`-sr` <br>`--scorerange`|range of score values from which genes should be considered (tsv file)|None| two numbers seperated by  a comma|
-|`-of`<br> `--ofirst`|whether to use only the first occurence of a feature in a bed file|False|no value in console,<br> 'true' or 'false' in config file |
+|`--go` <br>`--gomit`|genomic regions to be omitted|None|first characters of feature names|
+|`-nb`<br> `--nbest`|number of regions with the best scores to be considered (tsv files)|None|positive integer|
+|`-sr` <br>`--scorerange`|range of score values from which features should be considered (tsv file)|None| two numbers seperated by  a comma|
+|`-of`<br> `--ofirst`|whether to use only the first occurence of a region in a bed file|False|no value in console,<br> 'true' or 'false' in config file |
 
-The `--gomit` argument makes the script omit all genes that **begin with** one of the given strings.
+The `--gomit` argument makes the script omit all genomic features that **begin with** one of the given strings.
 The `--nbest` argument selects genes after chromosomes and genes are excluded.
 
+# Examples
+---
 
