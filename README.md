@@ -58,20 +58,20 @@ For example a run with argument `--nticks 2` will generate plots with 5 ticks fo
 When `--smooth` is set to true the curve is smoothed with a spline with a smoothing parameter equal to flank_length * 1e-4. To change the value of the smoothing parameter set the value of `--smooth` to a float.
 
 Example average profile with `--smooth` set to 0.08:
-![alt text](https://github.com/SMassalski/pmgplot/blob/master/Examples/avgprof_example3a.png "smooth = 0.08")
+![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/avgprof_example3a.png "smooth = 0.08")
 
 Example average profile with `--smooth` set to 0:
-![alt text](https://github.com/SMassalski/pmgplot/blob/master/Examples/avgprof_example3b.png "smooth = 0")
+![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/avgprof_example3b.png "smooth = 0")
 
 Matplotlib colormap names can be found [here.](https://matplotlib.org/users/colormaps.html)
 
 `--hnorm` allows you to use a symmetric logarithmic normalization when linear normalization generates a poorly visable heatmap. The 'log' heatmaps use gaussian interpolation
 
 Example heatmap with `--hnorm` set to 'lin':
-![alt text](https://github.com/SMassalski/pmgplot/blob/master/Examples/heatmap_example2c.png "hnorm = lin")
+![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/heatmap_example2c.png "hnorm = lin")
 
 Example heatmap with `--hnorm` set to 'log':
-![alt text](https://github.com/SMassalski/pmgplot/blob/master/Examples/heatmap_example2b.png "hnorm = log")
+![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/heatmap_example2b.png "hnorm = log")
 
 ## Region Declaration
 | Argument | Description| Default  | Values   |
