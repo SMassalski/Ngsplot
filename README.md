@@ -13,9 +13,13 @@ MGPLOT is a script for visualizing
 # Usage #
   ---
 1.[Input Options](https://github.com/SMassalski/mgplot#input-options)
+
 2.[Plot Options](https://github.com/SMassalski/mgplot#plot-options)
+
 3.[Region Declaration](https://github.com/SMassalski/mgplot#region-declaration)
+
 4.[Output](https://github.com/SMassalski/mgplot#output)
+
 5.[Detailed Feature Selection](https://github.com/SMassalski/mgplot#detailed-feature-selection)
 ## Input Options 
 | Argument              | Description                          | Default  | Values   |
