@@ -1,11 +1,11 @@
 # MGPLOT
 
-MGPLOT is a script for visualizing metagenomic data.
+MGPLOT is a script for visualizing metagenomic data.  The script generates average profiles and heatmaps of selected genomic features based on a provided bedgraph file.
 
 
 ## Dependencies ##
    ---
-1. Python (tested on 3.6.1)
+1. Python 3.6
 2. NumPy (tested on 1.12.1)
 3. SciPy (tested on 0.19.0)
 4. Seaborn (tested on 0.7.1)
@@ -122,8 +122,39 @@ The `--gomit` argument makes the script omit all genomic features that **begin w
 
 The `--nbest` argument selects genes after chromosomes and genes are excluded.
 
-When using `--scorerange` the first value should be smaller than the other.
+When using `--scorerange` the first value should be smaller than the other. `--scorerange` overrides `--nbest`
 
 # Examples
 ---
+### Example 1
+The configuration file (example1.cfg):
+```
+gfile		   RNAseq_counts.tsv
+infile		H3K4me3.bedgraph
+gfiletype	scoretsv
+flank 		2000
+region 		TSS
+nticks		2
+plottype 	both
+smooth		true
+matfile		out1.npy
+hnorm		   log
+sort		   false
+nbest		   2000
+```
+Running the script will generate an average profile and heatmap of H3K4me3 enrichment around the transcripton start site on the first 2000 most expressed genes in the tsv file. The matrix will be saved for replotting as out1.npy.
+```
+python mgplot.py -cf example1.cfg
+```
+The result:
 
+![alt_text](https://github.com/SMassalski/mgplot/blob/master/Examples/example1/example1b.png "average profile")
+
+![alt_text](https://github.com/SMassalski/mgplot/blob/master/Examples/example1/example1a.png "heatmap")
+
+Replotting the heatmap with `--sort` set to True:
+```
+python mgplot.py -cf example1.cfg -rp out1.npy --sort
+```
+
+![alt_text](https://github.com/SMassalski/mgplot/blob/master/Examples/example1/example1c.png "sorted heatmap")
