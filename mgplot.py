@@ -102,10 +102,8 @@ def loadGenes():
 			if not config['chrmonly'] and g[0] not in c:
 				c[g[0]] = []
 			if g[0] in c:
-				if g[2] == '+':
-					c[g[0]].append((g[3],g[4]))
-				else:
-					c[g[0]].append((g[4],g[3]))
+					c[g[0]].append((g[2],g[3]))
+				
 
 	keys = list(c.keys())
 	for key in c:
@@ -162,6 +160,10 @@ def query(fname,genome):
 					signal = signal[gStart-start:]	
 					start = gStart
 
+				elif gStart < start and start == 0:
+					signal = np.append(np.zeros(start - gStart,dtype = 'int8'),signal)
+					start = gStart
+
 
 				if gEnd+1 > end:
 					signal = np.append(signal,np.zeros(gEnd-end,dtype = 'int8'))
@@ -181,7 +183,7 @@ def query(fname,genome):
 						signal = np.append(signal,np.zeros(x-gEnd,dtype = 'int8'))
 					if gEnd < y:
 						signal = np.append(signal,np.array([z]*(y-x),dtype = 'int8'))
-
+			
 				#wpisz do pliku wyjściowego
 				if gene[0] > gene[1]:
 					res = np.flip(signal[:gEnd-start],axis = 0)
@@ -190,6 +192,7 @@ def query(fname,genome):
 
 				if region == "genebody":
 					res = np.append(res[:flank],[normalize(res[flank:-flank],flank),res[-flank:]])
+				
 				result.append(res)
 			
 			print(chrm,'done',i-1)
@@ -327,7 +330,6 @@ def readConfig():
 		if type(config[arg]) == str:
 			config[arg] = config[arg].lower()
 
-
 def readScore():
 	f = open(config['gfile'],'r')
 	result = []
@@ -342,6 +344,11 @@ def readScore():
 	else:
 		cOmit = ()
 
+	if config['chrmonly']:
+		cOnly = config['chrmonly']
+	else:
+		cOnly = None
+
 	for line in f:
 		l = line.split('_')
 		gName = l[1]
@@ -352,12 +359,15 @@ def readScore():
 				break
 		l = l[-1].split(':')
 		chrm = l[0][:-1]
+		if cOnly:
+			for x in cOnly:
+				if chrm not in cOnly:
+					append = False
 		if append and chrm not in cOmit:
-			strand = l[0][-1]
 			l = l[1].split('\t')
 			score = int(l[1])
 			l = l[0].split('-')
-			result.append((chrm,gName,strand,int(l[0]),int(l[1]),score))
+			result.append((chrm,gName,int(l[0]),int(l[1]),score))
 	f.close()
 
 	if config['nbest']:
