@@ -19,33 +19,33 @@ pars.add_argument('-gt','--gfiletype',type = str,help = "Type of the file contai
 pars.add_argument('-gi','--gindx',nargs = 5,type = str)
 pars.add_argument('-rp','--replot',type = str,help = "File containing matrix to be replotted")
 
-pars.add_argument('-oh','--hmfile',type = str,help = "Heatmap output file")
-pars.add_argument('-oa','--avgfile',type = str,help = "Average profile output file")
-pars.add_argument('-om','--matfile',type = str,help = "matrix output file")
+pars.add_argument('-oh','--hmfile',type = str,help = "Heatmap output filename")
+pars.add_argument('-oa','--avgfile',type = str,help = "Average profile output filename")
+pars.add_argument('-om','--matfile',type = str,help = "matrix output filename")
 
 pars.add_argument('-r','--region',type = str, help = "Region to be plotted ['TSS','TSE','genebody']; default = 'TSS'")
 pars.add_argument('-fl','--flank',type = str, help = "Length of flanking fragments to be plotted with the selected region; default = 3000")
 
-pars.add_argument('-only','--chrmonly',nargs = '+',type = str, help = "The exact names of additional chromosomes to be considered. Must be the same as in the bed and bedgraph files")
-pars.add_argument('-co','--chrmomit',nargs = '+',type = str)
-pars.add_argument('-go','--gomit',nargs = '+',type = str,help = "Whether to ignore or consider only the genes provided in --genes ['True','False']; default = 'true'" )
-
-pars.add_argument('-nb','--nbest',type = str)
-pars.add_argument('-sr','--scorerange',nargs = 2,type = str)
-pars.add_argument('-of','--ofirst',action = 'store_true')
+pars.add_argument('-only','--chrmonly',nargs = '+',type = str, help = "The exact names of chromosomes to be  exclusively considered")
+pars.add_argument('-co','--chrmomit',nargs = '+',type = str, help = "The exact names of chromosomes to be  exclusively considered")
+pars.add_argument('-go','--gomit',nargs = '+',type = str,help = "Names of features to be ignored")
+pars.add_argument('-nb','--nbest',type = str,help = "The number of features with the best score to be used")
+pars.add_argument('-sr','--scorerange',nargs = 2,type = str,help = "The score range from which the features are selected")
+pars.add_argument('-of','--ofirst',action = 'store_true', help = "Whether to use only the first feature with the same name [no value]; default = False")
 
 pars.add_argument('-nt','--nticks',type = str)
-pars.add_argument('-p','--plottype',type = str,help = "Type of plot to be generated ['avgprof','heatmap','both']; default = avgprof") #dokończ
-pars.add_argument('-s','--sort',action = 'store_true', help = "Whether to sort the matrix used for generating a heatmap; default = False")
-pars.add_argument('-cm','--cmap',type = str,help = "Colormap used in heatmap; default = 'Reds'")
-pars.add_argument('-sm','--smooth',type = str)
-pars.add_argument('-ht','--hmtitle',type = str)
-pars.add_argument('-at','--avgtitle',type = str)
-pars.add_argument('-cb','--cbar',action = 'store_true')
-pars.add_argument('-hn','--hnorm',type = str)
+pars.add_argument('-p','--plottype',type = str,help = "Type of plot to be generated ['avgprof','heatmap','both']; default = avgprof")
+pars.add_argument('-s','--sort',action = 'store_true', help = "Whether to sort the matrix used for generating a heatmap [no value]; default = False")
+pars.add_argument('-cm','--cmap',type = str,help = "Colormap used in the heatmap; default = 'Reds'")
+pars.add_argument('-sm','--smooth',type = str,help = "Smoothing factor used when smoothing the average profile with a spline. Set to 'false' or 0 if you don't want to smooth; default = flank*1e-4")
+pars.add_argument('-ht','--hmtitle',type = str,help = "Title of the heatmap")
+pars.add_argument('-at','--avgtitle',type = str,help = "Title of the average profile")
+pars.add_argument('-cb','--cbar',action = 'store_true',help = 'Whether to show a colorbar next to the heatmap [no value]; default = False')
+pars.add_argument('-hn','--hnorm',type = str,help = "Type of norm to be used for the heatmap colorscale ['lin','lo']; default = 'lin'")
 args=pars.parse_args()
 
-config = {
+
+config = {		#default argument values are stored here
 'region':'TSS',
 'flank':'1000',
 
@@ -78,8 +78,37 @@ config = {
 'scorerange':None,
 'ofirst':False
 }
+
 print('args parsed')
 
+def readConfig():
+	if args.configFile:
+		f = open(args.configFile,'r')
+
+		for line in f:
+			l = line.split()
+			if len(l)==2:
+				if l[0] in config:
+					config[l[0]] = l[1]
+		f.close()
+	
+	#override the config file values with the console values
+	for arg in vars(args):
+		if getattr(args, arg):
+			config[arg] = getattr(args, arg)
+
+	for arg in ['sort','ofirst','cbar']:
+		if type(config[arg]) == str:
+			config[arg] = config[arg].lower() == 'true'
+	for arg in ['gomit','chrmomit','gindx','scorerange','chrmonly']:
+		if type(config[arg]) == str:
+			config[arg] = config[arg].split(',')
+	for arg in ['flank','nticks','nbest']:
+		if type(config[arg]) == str:
+			config[arg] = int(config[arg])
+	for arg in ['region','plottype','hnorm','gfiletype']:
+		if type(config[arg]) == str:
+			config[arg] = config[arg].lower()
 
 def loadGenes():
 
@@ -88,22 +117,19 @@ def loadGenes():
 		for x in config['chrmonly']:
 			c[x] = []
 
+	# Add a new file format here
+	# read<Format>() should return a list of iterables with format:
+	# (<chromosome_name>,<TSS>,<TSE>,<additional_info>...)
 	if config['gfiletype'] == 'bed':
 		genes = readBed()
-		for g in genes:
-			if not config['chrmonly'] and g[0] not in c:
-				c[g[0]] = []
-			if g[0] in c:
-				c[g[0]].append((g[2],g[3]))
-
 	elif config['gfiletype'] == 'scoretsv':
 		genes = readScore()
-		for g in genes:
-			if not config['chrmonly'] and g[0] not in c:
-				c[g[0]] = []
-			if g[0] in c:
-					c[g[0]].append((g[2],g[3]))
-				
+
+	for g in genes:
+		if not config['chrmonly'] and g[0] not in c:
+			c[g[0]] = []
+		if g[0] in c:
+			c[g[0]].append((g[1],g[2]))				
 
 	keys = list(c.keys())
 	for key in c:
@@ -124,13 +150,14 @@ def query(fname,genome):
 		chrm = line[0]
 		if chrm in genome:
 
-			#zero od początku chromosomu do pojawienia się sygnału
+			
 			signal = np.zeros(int(line[1]),dtype = 'int8')
 
-			###		zakres "pokrycia" sygnału
+			
 			start = 0
 			end = int(line[1])
-			###
+			
+
 			i = 1
 			for gene in genome[chrm]:
 				stdout.write(chrm+'\t'+str(i)+'\r')
@@ -184,7 +211,7 @@ def query(fname,genome):
 					if gEnd < y:
 						signal = np.append(signal,np.array([z]*(y-x),dtype = 'int8'))
 			
-				#wpisz do pliku wyjściowego
+
 				if gene[0] > gene[1]:
 					res = np.flip(signal[:gEnd-start],axis = 0)
 				else:
@@ -212,7 +239,7 @@ def normalize(arr,size):
 
 def plot(values):
 
-	#set plotting variables
+	#plot vars set up
 	genebody = config['region'] == 'genebody'
 	plottype = config['plottype']
 
@@ -223,7 +250,6 @@ def plot(values):
 		size = 2*flank+1
 		s = flank/10000
 	
-	#set x-axis ticks
 	nticks = config['nticks']
 	if genebody:
 		ticks = ['-'+str(i*flank//nticks) for i in reversed(range(1,nticks+1))]+['TSS']+['%.2f' % float(i/(nticks)) for i in range(1,nticks)]+['TSE']+['+' + str(i*flank//nticks) for i in range(1,nticks+1)]
@@ -242,11 +268,14 @@ def plot(values):
 		if config['smooth'].lower() == 'true':
 			smooth = flank/10000
 		elif config['smooth'].lower() == 'false':
-			smooth = 0
+			config['smooth'] = False
 		else:
 			smooth = float(config['smooth'])
 
+
+	#plot avgprof
 	if plottype in ['avgprof','both']:
+
 		print('calculating mean...')
 
 		if config['smooth']:
@@ -256,17 +285,7 @@ def plot(values):
 		else:
 			avgprof = np.mean(values, axis=0,dtype = 'float16')
 
-	if config['sort'] and plottype in ['heatmap','both']:
-		print('sorting...')
-
-		b = np.sum(values,axis = 1) * -1
-		indx = b.argsort()
-		values = np.take(values,indx,axis=0)
-
-	print('plotting...')
-
-	#plot avgprof
-	if plottype in ['avgprof','both']:
+		print('plotting...')
 		with sb.axes_style("darkgrid"):
 			plt.plot(np.linspace(0,size,size),avgprof)
 
@@ -280,10 +299,20 @@ def plot(values):
 				plt.savefig(config['avgfile'])
 			else:
 				plt.show()
-	
+	#plot heatmap
 	if plottype in ['heatmap','both']:
+
+		if config['sort']:
+
+			print('sorting...')
+			b = np.sum(values,axis = 1) * -1
+			indx = b.argsort()
+			values = np.take(values,indx,axis=0)
+
 		if plottype == 'both':
 			plt.figure()
+
+		print('plotting...')
 		with sb.axes_style("ticks"):
 			if config['hnorm'] == 'lin':
 				plt.imshow(values,aspect = 'auto',cmap = config['cmap'],norm = colors.Normalize(vmin=values.min(),vmax=values.max()*.8))
@@ -292,6 +321,7 @@ def plot(values):
 
 			plt.xticks(tickvals,ticks)
 			plt.xlim((0,size))
+
 			if config['cbar']:
 				plt.colorbar()
 			if config['hmtitle']:
@@ -302,34 +332,6 @@ def plot(values):
 			else:
 				plt.show()
 			
-def readConfig():
-	
-	f = open(args.configFile,'r')
-
-	for line in f:
-		l = line.split()
-		if len(l)==2:
-			if l[0] in config:
-				config[l[0]] = l[1]
-	f.close()
-	
-	for arg in vars(args):
-		if getattr(args, arg):
-			config[arg] = getattr(args, arg)
-
-	for arg in ['sort','ofirst','cbar']:
-		if type(config[arg]) == str:
-			config[arg] = config[arg].lower() == 'true'
-	for arg in ['gomit','chrmomit','gindx','scorerange','chrmonly']:
-		if type(config[arg]) == str:
-			config[arg] = config[arg].split(',')
-	for arg in ['flank','nticks','nbest']:
-		if type(config[arg]) == str:
-			config[arg] = int(config[arg])
-	for arg in ['region','plottype','hnorm','gfiletype']:
-		if type(config[arg]) == str:
-			config[arg] = config[arg].lower()
-
 def readScore():
 	f = open(config['gfile'],'r')
 	result = []
@@ -367,7 +369,7 @@ def readScore():
 			l = l[1].split('\t')
 			score = int(l[1])
 			l = l[0].split('-')
-			result.append((chrm,gName,int(l[0]),int(l[1]),score))
+			result.append((chrm,int(l[0]),int(l[1]),gName,score))
 	f.close()
 
 	if config['nbest']:
@@ -422,18 +424,17 @@ def readBed():
 					append = False
 			if append:
 				if line[-1] == '+':
-					result.append((line[indx['chrm']],line[indx['name']],int(line[indx['start']]),int(line[indx['end']])))
+					result.append((line[indx['chrm']],int(line[indx['start']]),int(line[indx['end']]),line[indx['name']]))
 				else:
-					result.append((line[indx['chrm']],line[indx['name']],int(line[indx['end']]),int(line[indx['start']])))
+					result.append((line[indx['chrm']],int(line[indx['end']]),int(line[indx['start']]),line[indx['name']]))
 	f.close()
 	return result
-
 
 readConfig()
 region = config['region']
 flank = config['flank']
-
 TSE = region =='tse'
+
 if config['replot']:
 	print('loading file')
 	plot(np.load(config['replot']))
