@@ -41,7 +41,7 @@ pars.add_argument('-sm','--smooth',type = str,help = "Smoothing factor used when
 pars.add_argument('-ht','--hmtitle',type = str,help = "Title of the heatmap")
 pars.add_argument('-at','--avgtitle',type = str,help = "Title of the average profile")
 pars.add_argument('-cb','--cbar',action = 'store_true',help = 'Whether to show a colorbar next to the heatmap [no value]; default = False')
-pars.add_argument('-hn','--hnorm',type = str,help = "Type of norm to be used for the heatmap colorscale ['lin','lo']; default = 'lin'")
+pars.add_argument('-hn','--hnorm',type = str,help = "Type of norm to be used for the heatmap colorscale ['lin','log']; default = 'lin'")
 args=pars.parse_args()
 
 
