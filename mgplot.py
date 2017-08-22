@@ -317,7 +317,7 @@ def plot(values):
 			if config['hnorm'] == 'lin':
 				plt.imshow(values,aspect = 'auto',cmap = config['cmap'],norm = colors.Normalize(vmin=values.min(),vmax=values.max()*.8))
 			elif config['hnorm'] == 'log':
-				plt.imshow(values,aspect = 'auto',cmap = config['cmap'],norm =colors.SymLogNorm(linthresh=0.3),interpolation = 'gaussian')
+				plt.imshow(values,aspect = 'auto',cmap = config['cmap'],norm =colors.LogNorm())
 
 			plt.xticks(tickvals,ticks)
 			plt.xlim((0,size))

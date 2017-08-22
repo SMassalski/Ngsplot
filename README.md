@@ -79,7 +79,7 @@ The same average profile with `--smooth` set to 0:
 
 Matplotlib colormap names can be found [here.](https://matplotlib.org/users/colormaps.html)
 
-`--hnorm` allows you to use a symmetric logarithmic normalization when linear normalization generates a poorly visable heatmap. The 'log' heatmaps use gaussian interpolation
+`--hnorm` allows you to use a logarithmic normalization when linear normalization generates a poorly visable heatmap.
 
 Example heatmap with `--hnorm` set to 'lin':
 ![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/heatmap_example2c.png "hnorm = lin")
@@ -129,7 +129,7 @@ When using `--scorerange` the first value should be smaller than the other. `--s
 ### Example 1
 The configuration file (example1.cfg):
 ```
-gfile		   RNAseq_counts.tsv
+gfile		RNAseq_counts.tsv
 infile		H3K4me3.bedgraph
 gfiletype	scoretsv
 flank 		2000
@@ -138,9 +138,9 @@ nticks		2
 plottype 	both
 smooth		true
 matfile		out1.npy
-hnorm		   log
-sort		   false
-nbest		   2000
+hnorm		log
+sort		false
+nbest		2000
 ```
 Running the script will generate an average profile and heatmap of H3K4me3 enrichment around the transcripton start site on the first 2000 most expressed genes in the tsv file. The matrix will be saved for replotting as out1.npy.
 ```
