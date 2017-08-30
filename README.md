@@ -150,11 +150,11 @@ The result:
 
 ![alt_text](https://github.com/SMassalski/mgplot/blob/master/Examples/example1/example1b.png "average profile")
 
-![alt_text](https://github.com/SMassalski/mgplot/blob/master/Examples/example1/example1a.png "heatmap")
+![alt_text](https://github.com/SMassalski/mgplot/blob/master/Examples/example1/example1c.png "heatmap")
 
 Replotting the heatmap with `--sort` set to True:
 ```
 python mgplot.py -cf example1.cfg -rp out1.npy --sort
 ```
 
-![alt_text](https://github.com/SMassalski/mgplot/blob/master/Examples/example1/example1c.png "sorted heatmap")
+![alt_text](https://github.com/SMassalski/mgplot/blob/master/Examples/example1/example1a.png "sorted heatmap")
