@@ -16,8 +16,9 @@ pars.add_argument('-cf','--configFile',type = str, help = "File containing confi
 pars.add_argument('-g','--gfile',type = str,help = "File containing genes")
 pars.add_argument('-i','--infile',type = str,help = "Bedgraph file containing the signal")
 pars.add_argument('-gt','--gfiletype',type = str,help = "Type of the file containing genes ['bed','scoretsv']; default = 'bed'")
-pars.add_argument('-gi','--gindx',nargs = 5,type = str)
+pars.add_argument('-gi','--gindx',nargs = 5)
 pars.add_argument('-rp','--replot',type = str,help = "File containing matrix to be replotted")
+
 
 pars.add_argument('-oh','--hmfile',type = str,help = "Heatmap output filename")
 pars.add_argument('-oa','--avgfile',type = str,help = "Average profile output filename")
@@ -54,6 +55,7 @@ config = {		#default argument values are stored here
 'gfiletype':'bed',
 'gindx':None,
 'replot':None,
+'dtype':'int8',
 
 'hmfile':None,
 'avgfile':None,
@@ -145,7 +147,7 @@ def query(fname,genome):
 	f = open(fname,'r')
 	result = []
 	line = f.readline().split()
-	
+
 	while line:
 		chrm = line[0]
 		if chrm in genome:
@@ -420,7 +422,7 @@ def readBed():
 					break
 
 			if ofirst and len(result)>0:
-				if result[-1][1] == line[indx['name']]:
+				if result[-1][-1] == line[indx['name']]:
 					append = False
 			if append:
 				if line[-1] == '+':
