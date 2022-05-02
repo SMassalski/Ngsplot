@@ -17,7 +17,6 @@ pars.add_argument('-i', '--infile', type=str,
 pars.add_argument('-gt', '--gfiletype', type=str,
                   help="Type of the file containing genes ['bed','scoretsv'];"
                        " default = 'bed'")
-pars.add_argument('-gi', '--gindx', nargs=5)
 pars.add_argument('-rp', '--replot', type=str,
                   help="File containing matrix to be replotted")
 
@@ -80,7 +79,6 @@ config = {  # default argument values are stored here
     'infile': None,
     'gfile': None,
     'gfiletype': 'bed',
-    'gindx': None,
     'replot': None,
     'dtype': 'int8',
     
@@ -437,12 +435,12 @@ def read_score():
 
 
 def read_bed():
-    if config['gindx']:
-        l = config['gindx']
-        indx = {'chrm': int(l[0]), 'start': int(l[1]), 'end': int(l[2]),
-                'name': int(l[3]), 'strand': int([4])}
-    else:
-        indx = {'chrm': 0, 'start': 1, 'end': 2, 'name': 3, 'strand': -1}
+    indx = {'chrm': 0,
+            'start': 1,
+            'end': 2,
+            'name': 3,
+            'score': 4,
+            'strand': 5}
     
     f = open(config['gfile'], 'r')
     result = []
@@ -481,6 +479,7 @@ def read_bed():
                                    line[indx['name']]))
     f.close()
     return result
+
 
 
 read_config()
