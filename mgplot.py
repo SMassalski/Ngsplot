@@ -1,6 +1,7 @@
 import argparse
 from sys import stdout
 from bisect import bisect_left, bisect_right
+from collections import namedtuple
 import numpy as np
 from scipy import interpolate
 import matplotlib.pyplot as plt
@@ -147,7 +148,10 @@ def load_genes():
     # read<Format>() should return a list of iterables with format:
     # (<chromosome_name>,<TSS>,<TSE>,<additional_info>...)
     if config['gfiletype'] == 'bed':
-        genes = read_bed()
+        genes = read_bed(config['gfile'],
+                         omit_chr=config['chrmomit'],
+                         omit_reg=config['gomit'],
+                         only_first=config['ofirst'])
     elif config['gfiletype'] == 'scoretsv':
         genes = read_score()
     
@@ -434,52 +438,81 @@ def read_score():
     return result
 
 
-def read_bed():
-    indx = {'chrm': 0,
-            'start': 1,
-            'end': 2,
-            'name': 3,
-            'score': 4,
-            'strand': 5}
-    
-    f = open(config['gfile'], 'r')
-    result = []
-    
-    if config['gomit']:
-        gOmit = config['gomit']
-    else:
-        gOmit = ()
-    if config['chrmomit']:
-        cOmit = config['chrmomit']
-    else:
-        cOmit = ()
-    
-    ofirst = config['ofirst']
-    
-    for line in f:
-        line = line.split()
-        if line[indx['chrm']] not in cOmit:
-            append = True
-            for g in gOmit:
-                if line[indx['name']].startswith(g):
-                    append = False
-                    break
-            
-            if ofirst and len(result) > 0:
-                if result[-1][-1] == line[indx['name']]:
-                    append = False
-            if append:
-                if line[-1] == '+':
-                    result.append((
-                                  line[indx['chrm']], int(line[indx['start']]),
-                                  int(line[indx['end']]), line[indx['name']]))
-                else:
-                    result.append((line[indx['chrm']], int(line[indx['end']]),
-                                   int(line[indx['start']]),
-                                   line[indx['name']]))
-    f.close()
-    return result
+Region = namedtuple('Region', ['chromosome',
+                               'start',
+                               'end',
+                               'name',
+                               'positive_strand'])
 
+
+# DESIGN: Filter after all regions are collected?
+#   Implement a parser class.
+def read_bed(fp, omit_chr=(), omit_reg=(), only_first=False):
+    """Read and parse a bed file.
+    
+    Parameters
+    ----------
+    fp : str
+        Path of the bed file.
+    omit_chr : Iterable[str]
+        An iterable containing names of chromosomes to be omitted.
+    omit_reg : Iterable[str]
+        An iterable containing names of regions to be omitted. This
+        argument will be ignored if the bed file does not contain region
+        names.
+    only_first : bool
+        Whether to keep only the first region when the bed file contains
+        multiple regions with the same name. This argument will be
+        ignored if the bed file does not contain region names.
+
+    Returns
+    -------
+    List[Region]
+        List of regions in the bed file
+    """
+    result = []
+    omit_chr = set(omit_chr)
+    omit_reg = set(omit_reg)
+    seen_names = set()
+    with open(fp) as f:
+        for line in f:
+            line = line.split()
+            chromosome, start, end = line[:3]
+            start = int(start)
+            end = int(end)
+            name = None
+            pos_strand = True
+            # positive strand is assumed if the bed file does not
+            # contain the information
+
+            # Omitting chromosomes
+            if chromosome in omit_chr:
+                continue
+            
+            if len(line) > 3:
+                name = line[3]
+                # Omitting regions
+                if name in omit_reg:
+                    continue
+                if len(line) > 5:
+                    pos_strand = line[5] == '+'
+            
+            # Keeping only first region
+            if only_first:
+                if name in seen_names:
+                    continue
+                elif name is not None:
+                    seen_names.add(name)
+            
+            # flipping negative strands (does it make sense?)
+            if pos_strand:
+                region = Region(chromosome, start, end, name, pos_strand)
+            else:
+                region = Region(chromosome, end, start, name, pos_strand)
+            
+            result.append(region)
+    
+    return result
 
 
 read_config()
