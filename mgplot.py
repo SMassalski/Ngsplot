@@ -148,12 +148,15 @@ def load_genes():
     # read<Format>() should return a list of iterables with format:
     # (<chromosome_name>,<TSS>,<TSE>,<additional_info>...)
     if config['gfiletype'] == 'bed':
-        genes = read_bed(config['gfile'],
-                         omit_chr=config['chrmomit'],
-                         omit_reg=config['gomit'],
-                         only_first=config['ofirst'])
+        genes = read_bed(config['gfile'], omit_chr=config['chrmomit'],
+                         omit_reg=config['gomit'], only_first=config['ofirst'])
     elif config['gfiletype'] == 'scoretsv':
-        genes = read_score()
+        genes = read_score_tsv(config['gfile'], omit_chr=config['chrmomit'],
+                               omit_reg=config['gomit'],
+                               only_first=config['ofirst'],
+                               n_best=config['nbest'],
+                               max_score=float(config['scorerange'][1]),
+                               min_score=float(config['scorerange'][0]))
     
     for g in genes:
         if not config['chrmonly'] and g[0] not in c:
@@ -381,68 +384,102 @@ def plot(values):
                 plt.show()
 
 
-def read_score():
-    f = open(config['gfile'], 'r')
-    result = []
-    
-    if config['gomit']:
-        gOmit = config['gomit']
-    else:
-        gOmit = ()
-    
-    if config['chrmomit']:
-        cOmit = config['chrmomit']
-    else:
-        cOmit = ()
-    
-    if config['chrmonly']:
-        cOnly = config['chrmonly']
-    else:
-        cOnly = None
-    
-    for line in f:
-        l = line.split('_')
-        gName = l[1]
-        append = True
-        for x in gOmit:
-            if gName.startswith(x):
-                append = False
-                break
-        l = l[-1].split(':')
-        chrm = l[0][:-1]
-        if cOnly:
-            for x in cOnly:
-                if chrm not in cOnly:
-                    append = False
-        if append and chrm not in cOmit:
-            l = l[1].split('\t')
-            score = int(l[1])
-            l = l[0].split('-')
-            result.append((chrm, int(l[0]), int(l[1]), gName, score))
-    f.close()
-    
-    if config['nbest']:
-        n = config['nbest']
-        if n < len(result):
-            result = sorted(result, key=lambda t: t[-1], reverse=True)
-            result = result[:n]
-    elif config['scorerange']:
-        r = config['scorerange']
-        r = (int(r[0]), int(r[1]))
-        result = sorted(result, key=lambda t: t[-1])
-        scores = [t[-1] for t in result]
-        i = bisect_left(scores, r[0])
-        j = bisect_right(scores, r[1], lo=i)
-        result = result[i:j]
-    
-    return result
-
-
 Region = namedtuple('Region', ['chromosome',
                                'start',
                                'end',
                                'name',
                                'positive_strand'])
+
+
+def read_score_tsv(fp, omit_chr=(), omit_reg=(), only_first=None,
+                   only_chr=None, n_best=None, max_score=None, min_score=None):
+    """Read and parse a custom score tsv file.
+
+        Parameters
+        ----------
+        fp : str
+            Path of the bed file.
+        omit_chr : Iterable[str]
+            An iterable containing names of chromosomes to be omitted.
+        omit_reg : Iterable[str]
+            An iterable containing names of regions to be omitted. This
+            argument will be ignored if the bed file does not contain region
+            names.
+        only_first : bool
+            Whether to keep only the first region when the bed file contains
+            multiple regions with the same name. This argument will be
+            ignored if the bed file does not contain region names.
+        only_chr : Iterable[str]
+            An iterable of chromosome names that will be exclusively
+             considered.
+        n_best : int
+            Number of regions with the highest score to be returned.
+        max_score : float
+            Upper limit (inclusive) of scores. Only regions with scores lower
+            or equal will be returned.
+        min_score : float
+            Lower limit (inclusive) of scores. Only regions with scores higher
+            or equal will be returned.
+
+        Returns
+        -------
+        List[Region]
+            List of regions in the file
+        """
+    result = []
+    omit_chr = set(omit_chr)
+    omit_reg = set(omit_reg)
+    seen_names = set()
+    
+    with open(fp, 'r') as f:
+        for line in f:
+            line = line.split('_')
+            name = line[1]
+            line = line[-1].split(':')
+            chromosome = line[0][:-1]
+            line = line[1].split('\t')
+            score = int(line[1])
+            line = line[0].split('-')
+            start = int(line[0])
+            end = int(line[1])
+            
+            # omitting chromosomes
+            if chromosome in omit_chr:
+                continue
+            
+            # omitting regions
+            if name in omit_reg:
+                continue
+            
+            # selecting chromosomes
+            if only_chr and chromosome not in only_chr:
+                continue
+            
+            # Keeping only first region
+            if only_first:
+                if name in seen_names:
+                    continue
+                elif name is not None:
+                    seen_names.add(name)
+            
+            result.append(Region(chromosome, start, end, name, True, score))
+    
+    # n highest score filter
+    if n_best is not None:
+        if n_best < len(result):
+            n_best_regions = sorted(result,
+                                    key=lambda t: t.score,
+                                    reverse=True)
+            n_best_regions = set(n_best_regions[:n_best])
+            result = list(filter(lambda x: x in n_best_regions, result))
+    
+    # score range filter
+    if max_score is not None:
+        result = list(filter(lambda x: x.score <= max_score))
+    if min_score is not None:
+        result = list(filter(lambda x: x.score >= min_score))
+    
+    return result
 
 
 # DESIGN: Filter after all regions are collected?
