@@ -1,47 +1,29 @@
 from collections import namedtuple
+from abc import ABC, abstractmethod
 import logging
 
-# TODO: Implement parser class
-# TODO: Separate filtering from parsing
 
+# DESIGN: Filtering does not belong in this module
+# DESIGN: The custom parser probably should be in the main script
 Region = namedtuple('Region', ['chromosome', 'start', 'end', 'name',
                                'positive_strand', 'score'])
 
 
-def load_regions(fp, file_format='bed', region_part='body', omit_chr=(),
-                 omit_reg=(), only_chr=None, only_first=False, n_best=None,
-                 max_score=None, min_score=None):
-    """Load regions from file
+def load_regions(fp, parser='bed', region_part='body', **kwargs):
+    r"""Load regions from file
 
     Parameters
     ----------
     fp : str
         Path of the bed file.
-    file_format : str, one of ['bed', 'score_tsv']
-        Format of the input file.
+    parser : str, one of ['bed', 'score_tsv'] or RegionParserBase
+             subclass object
+        Parser for the file.
     region_part : str
         Part of the region that will be plotted.
-    omit_chr : Iterable[str]
-        An iterable containing names of chromosomes to be omitted.
-    omit_reg : Iterable[str]
-        An iterable containing names of regions to be omitted. This
-        argument will be ignored if the bed file does not contain region
-        names.
-    only_first : bool
-        Whether to keep only the first region when the bed file contains
-        multiple regions with the same name. This argument will be
-        ignored if the bed file does not contain region names.
-    only_chr : Iterable[str]
-        An iterable of chromosome names that will be exclusively
-         considered.
-    n_best : int
-        Number of regions with the highest score to be returned.
-    max_score : float
-        Upper limit (inclusive) of scores. Only regions with scores
-        lower or equal will be returned.
-    min_score : float
-        Lower limit (inclusive) of scores. Only regions with scores
-        higher or equal will be returned.
+    \*\*kwargs : dict
+        Keyword arguments used for filtering. See documentation for
+        `filter_regions` and `_keep_region`
 
     Returns
     -------
@@ -51,21 +33,22 @@ def load_regions(fp, file_format='bed', region_part='body', omit_chr=(),
     Raises
     ------
     ValueError
-        If the provided `file_format` is not supported.
+        If the provided `parser` str is not recognized or not an object
+        subclassing RegionParserBase.
     """
-    if file_format == 'bed':
-        regions = read_bed(fp, omit_chr=omit_chr, omit_reg=omit_reg,
-                           only_first=only_first, n_best=n_best,
-                           max_score=max_score, min_score=min_score,
-                           only_chr=only_chr)
-    elif file_format == 'score_tsv':
-        regions = read_score_tsv(fp, omit_chr=omit_chr, omit_reg=omit_reg,
-                                 only_first=only_first, n_best=n_best,
-                                 max_score=max_score, min_score=min_score,
-                                 only_chr=only_chr)
-    else:
-        raise ValueError(f'{file_format} is not a supported file format')
+    if type(parser) == str:
+        if parser == 'bed':
+            parser = BedParser()
+            
+        elif parser == 'score_tsv':
+            parser = ScoreTSVParser()
+        else:
+            raise ValueError(f'Parser {parser} not recognized.')
+    elif not isinstance(parser, RegionParserBase):
+        raise ValueError('Invalid parser.')
     
+    regions = parser.parse(fp)
+    filter_regions(regions, **kwargs)
     # keeps only start and end of regions
     c = {}
     for r in regions:
@@ -80,29 +63,116 @@ def load_regions(fp, file_format='bed', region_part='body', omit_chr=(),
     return c
 
 
-def read_bed(fp, omit_chr=(), omit_reg=(), only_first=False,
-             only_chr=None, n_best=None, max_score=None, min_score=None):
-    """Read and parse a bed file.
+class RegionParserBase(ABC):
+    """Base class for region parser
+
+    """
+    
+    @abstractmethod
+    def parse(self, fp):
+        """Read and parse a file containing genomic regions
+
+        Parameters
+        ----------
+        fp : str
+            Path of the file.
+
+        Returns
+        -------
+        List[Regions]
+            List of regions in the file
+        """
+        pass
+
+
+class BedParser(RegionParserBase):
+    """Parser for bed files.
+
+    The parser reads optional fields. If not present in the file defaults
+    will be used:
+    - name: None
+    - score: 0
+    - strand: +
+    """
+    
+    # TODO: Track line handling
+    def parse(self, fp):
+        result = []
+        log_missing_info = False
+        
+        with open(fp) as f:
+            for line in f:
+                line = line.split()
+                chromosome, start, end = line[:3]
+                start = int(start)
+                end = int(end)
+                name = None
+                score = 0
+                pos_strand = True
+                
+                try:
+                    name = line[3]
+                    score = float(line[4])
+                    pos_strand = line[5] == '+'
+                except IndexError:
+                    log_missing_info = True
+                
+                # flipping negative strands (does it make sense?)
+                if pos_strand:
+                    region = Region(chromosome, start, end, name, pos_strand,
+                                    score)
+                else:
+                    region = Region(chromosome, end, start, name, pos_strand,
+                                    score)
+                
+                result.append(region)
+        
+        if log_missing_info:
+            logging.info('Some optional fields were missing in the file')
+        
+        return result
+
+
+class ScoreTSVParser(RegionParserBase):
+    """Parser for a custom tsv format"""
+    def parse(self, fp):
+        result = []
+        
+        with open(fp, 'r') as f:
+            for line in f:
+                line = line.split('_')
+                name = line[1]
+                line = line[-1].split(':')
+                chromosome = line[0][:-1]
+                line = line[1].split('\t')
+                score = int(line[1])
+                line = line[0].split('-')
+                start = int(line[0])
+                end = int(line[1])
+                
+                result.append(
+                    Region(chromosome, start, end, name, True, score))
+        
+        return result
+
+
+def _keep_region(region, omit_chr=(), omit_reg=(), only_chr=None,
+                 max_score=None, min_score=None, **_):
+    r"""Check if a region satisfies filtering conditions.
 
     Parameters
     ----------
-    fp : str
-        Path of the bed file.
+    region : Region
+        Region to be checked.
     omit_chr : Iterable[str]
         An iterable containing names of chromosomes to be omitted.
     omit_reg : Iterable[str]
         An iterable containing names of regions to be omitted. This
         argument will be ignored if the bed file does not contain region
         names.
-    only_first : bool
-        Whether to keep only the first region when the bed file contains
-        multiple regions with the same name. This argument will be
-        ignored if the bed file does not contain region names.
     only_chr : Iterable[str]
         An iterable of chromosome names that will be exclusively
-        considered.
-    n_best : int
-        Number of regions with the highest score to be returned.
+         considered.
     max_score : float
         Upper limit (inclusive) of scores. Only regions with scores
         lower or equal will be returned.
@@ -112,172 +182,83 @@ def read_bed(fp, omit_chr=(), omit_reg=(), only_first=False,
 
     Returns
     -------
-    List[Region]
-        List of regions in the bed file
+    bool
+        Whether the region passes the check.
     """
-    result = []
-    omit_chr = set(omit_chr)
-    omit_reg = set(omit_reg)
-    seen_names = set()
+    # selecting chromosomes
+    if only_chr is not None and region.chromosome not in only_chr:
+        return False
     
-    log_missing_info = False
-    with open(fp) as f:
-        for line in f:
-            line = line.split()
-            chromosome, start, end = line[:3]
-            start = int(start)
-            end = int(end)
-            name = None
-            score = 0
-            pos_strand = True
-            # positive strand is assumed if the bed file does not
-            # contain the information
-            
-            try:
-                name = line[3]
-                score = float(line[4])
-                pos_strand = line[5] == '+'
-            except IndexError:
-                log_missing_info = True
-            
-            # Omitting chromosomes
-            if chromosome in omit_chr:
-                continue
+    # omitting chromosomes
+    if region.chromosome in omit_chr:
+        return False
+    
+    # omitting regions
+    if region.name in omit_reg:
+        return False
+    
+    # score range filter
+    if max_score is not None and region.score <= max_score:
+        return False
+    if min_score is not None and region.score >= min_score:
+        return False
+    
+    return True
 
-            # selecting chromosomes
-            if only_chr and chromosome not in only_chr:
-                continue
 
-            # Omitting regions
-            if name in omit_reg:
+def filter_regions(regions, only_first=False,
+                   n_best=None, **kwargs):
+    r"""Filter list of genomic regions.
+
+    Parameters
+    ----------
+    regions : List[Region]
+        Regions to be filtered.
+    
+    only_first : bool
+        Whether to keep only the first region when the bed file
+        contains multiple regions with the same name. This argument
+        will be ignored if the bed file does not contain region
+        names.
+    n_best : int
+        Number of regions with the highest score to be kept.
+    \*\*kwargs : dict
+        Additional keyword arguments including elementwise filtering
+        conditions. Valid elementwise conditions include:
+            - omit_chr : Iterable[str]
+            - omit_reg : Iterable[str]
+            - only_chr : Iterable[str]
+            - max_score : float
+            - min_score : float
+        See documentation for _keep_region
+
+    Returns
+    -------
+    List[Region]
+        Filtered list of regions.
+    """
+    # elementwise filter
+    regions = list(filter(lambda x: _keep_region(x, **kwargs), regions))
+    result = []
+    
+    # only_first filter
+    seen_names = set()
+    if only_first:
+        for r in regions:
+            if r.name in seen_names:
                 continue
-            
-            # Keeping only first region
-            if only_first:
-                if name in seen_names:
-                    continue
-                elif name is not None:
-                    seen_names.add(name)
-            
-            # flipping negative strands (does it make sense?)
-            if pos_strand:
-                region = Region(chromosome, start, end, name, pos_strand,
-                                score)
             else:
-                region = Region(chromosome, end, start, name, pos_strand,
-                                score)
-            
-            result.append(region)
-
-            # n highest score filter
-            if n_best is not None:
-                if n_best < len(result):
-                    n_best_regions = sorted(result,
-                                            key=lambda t: t.score,
-                                            reverse=True)
-                    n_best_regions = set(n_best_regions[:n_best])
-                    result = list(
-                        filter(lambda x: x in n_best_regions, result))
-
-            # score range filter
-            if max_score is not None:
-                result = list(filter(lambda x: x.score <= max_score))
-            if min_score is not None:
-                result = list(filter(lambda x: x.score >= min_score))
-                
-    if log_missing_info:
-        logging.info('Some optional fields were missing in the file')
+                if r.name is not None:
+                    seen_names.add(r.name)
+                result.append(r)
     
-    return result
-
-
-def read_score_tsv(fp, omit_chr=(), omit_reg=(), only_first=None,
-                   only_chr=None, n_best=None, max_score=None, min_score=None):
-    """Read and parse a custom score tsv file.
-
-        Parameters
-        ----------
-        fp : str
-            Path of the bed file.
-        omit_chr : Iterable[str]
-            An iterable containing names of chromosomes to be omitted.
-        omit_reg : Iterable[str]
-            An iterable containing names of regions to be omitted. This
-            argument will be ignored if the bed file does not contain
-            region names.
-        only_first : bool
-            Whether to keep only the first region when the bed file
-            contains multiple regions with the same name. This argument
-            will be ignored if the bed file does not contain region
-            names.
-        only_chr : Iterable[str]
-            An iterable of chromosome names that will be exclusively
-             considered.
-        n_best : int
-            Number of regions with the highest score to be returned.
-        max_score : float
-            Upper limit (inclusive) of scores. Only regions with scores
-            lower or equal will be returned.
-        min_score : float
-            Lower limit (inclusive) of scores. Only regions with scores
-            higher or equal will be returned.
-
-        Returns
-        -------
-        List[Region]
-            List of regions in the file
-        """
-    result = []
-    omit_chr = set(omit_chr)
-    omit_reg = set(omit_reg)
-    seen_names = set()
-    
-    with open(fp, 'r') as f:
-        for line in f:
-            line = line.split('_')
-            name = line[1]
-            line = line[-1].split(':')
-            chromosome = line[0][:-1]
-            line = line[1].split('\t')
-            score = int(line[1])
-            line = line[0].split('-')
-            start = int(line[0])
-            end = int(line[1])
-            
-            # omitting chromosomes
-            if chromosome in omit_chr:
-                continue
-            
-            # omitting regions
-            if name in omit_reg:
-                continue
-            
-            # selecting chromosomes
-            if only_chr and chromosome not in only_chr:
-                continue
-            
-            # Keeping only first region
-            if only_first:
-                if name in seen_names:
-                    continue
-                elif name is not None:
-                    seen_names.add(name)
-            
-            result.append(Region(chromosome, start, end, name, True, score))
-    
-    # n highest score filter
+    # n_best filter
     if n_best is not None:
         if n_best < len(result):
+            # keeping the previous order
             n_best_regions = sorted(result,
                                     key=lambda t: t.score,
                                     reverse=True)
             n_best_regions = set(n_best_regions[:n_best])
             result = list(filter(lambda x: x in n_best_regions, result))
-    
-    # score range filter
-    if max_score is not None:
-        result = list(filter(lambda x: x.score <= max_score))
-    if min_score is not None:
-        result = list(filter(lambda x: x.score >= min_score))
-    
     return result
