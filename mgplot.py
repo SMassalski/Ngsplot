@@ -16,7 +16,7 @@ pars.add_argument('-g', '--gfile', type=str, help="File containing genes")
 pars.add_argument('-i', '--infile', type=str,
                   help="Bedgraph file containing the signal")
 pars.add_argument('-gt', '--gfiletype', type=str,
-                  help="Type of the file containing genes ['bed','scoretsv'];"
+                  help="Type of the file containing genes ['bed','score_tsv'];"
                        " default = 'bed'")
 pars.add_argument('-rp', '--replot', type=str,
                   help="File containing matrix to be replotted")
@@ -138,39 +138,75 @@ def read_config():
             config[arg] = config[arg].lower()
 
 
-def load_genes():
+def load_regions(fp, file_format='bed', region_part='body', omit_chr=(),
+                 omit_reg=(), only_chr=None, only_first=False, n_best=None,
+                 max_score=None, min_score=None):
+    """Load regions from file
+
+    Parameters
+    ----------
+    fp : str
+        Path of the bed file.
+    file_format : str, one of ['bed', 'score_tsv']
+        Format of the input file.
+    region_part : str
+        Part of the region that will be plotted.
+    omit_chr : Iterable[str]
+        An iterable containing names of chromosomes to be omitted.
+    omit_reg : Iterable[str]
+        An iterable containing names of regions to be omitted. This
+        argument will be ignored if the bed file does not contain region
+        names.
+    only_first : bool
+        Whether to keep only the first region when the bed file contains
+        multiple regions with the same name. This argument will be
+        ignored if the bed file does not contain region names.
+    only_chr : Iterable[str]
+        An iterable of chromosome names that will be exclusively
+         considered.
+    n_best : int
+        Number of regions with the highest score to be returned.
+    max_score : float
+        Upper limit (inclusive) of scores. Only regions with scores
+        lower or equal will be returned.
+    min_score : float
+        Lower limit (inclusive) of scores. Only regions with scores
+        higher or equal will be returned.
+
+    Returns
+    -------
+    Dict[str:List[Tuple[int,int]]]
+        Mapping of chromosomes to starts and ends of regions
+        
+    Raises
+    ------
+    ValueError
+        If the provided `file_format` is not supported.
+    """
+    if file_format == 'bed':
+        regions = read_bed(fp, omit_chr=omit_chr, omit_reg=omit_reg,
+                           only_first=only_first, n_best=n_best,
+                           max_score=max_score, min_score=min_score,
+                           only_chr=only_chr)
+    elif file_format == 'score_tsv':
+        regions = read_score_tsv(fp, omit_chr=omit_chr, omit_reg=omit_reg,
+                                 only_first=only_first, n_best=n_best,
+                                 max_score=max_score, min_score=min_score,
+                                 only_chr=only_chr)
+    else:
+        raise ValueError(f'{file_format} is not a supported file format')
+    
+    # keeps only start and end of regions
     c = {}
-    if config['chrmonly']:
-        for x in config['chrmonly']:
-            c[x] = []
+    for r in regions:
+        c[r.chromosome] = c.get(r.chromosome, []) + [(r.start, r.end)]
     
-    # Add a new file format here
-    # read<Format>() should return a list of iterables with format:
-    # (<chromosome_name>,<TSS>,<TSE>,<additional_info>...)
-    if config['gfiletype'] == 'bed':
-        genes = read_bed(config['gfile'], omit_chr=config['chrmomit'],
-                         omit_reg=config['gomit'], only_first=config['ofirst'])
-    elif config['gfiletype'] == 'scoretsv':
-        genes = read_score_tsv(config['gfile'], omit_chr=config['chrmomit'],
-                               omit_reg=config['gomit'],
-                               only_first=config['ofirst'],
-                               n_best=config['nbest'],
-                               max_score=float(config['scorerange'][1]),
-                               min_score=float(config['scorerange'][0]))
-    
-    for g in genes:
-        if not config['chrmonly'] and g[0] not in c:
-            c[g[0]] = []
-        if g[0] in c:
-            c[g[0]].append((g[1], g[2]))
-    
-    keys = list(c.keys())
+    # sort by roi
     for key in c:
-        if region == 'genebody':
-            c[key] = sorted(c[key], key=lambda g: min(g))
+        if region_part == 'body' or region_part == 'tss':
+            c[key] = sorted(c[key])
         else:
-            c[key] = sorted(c[key], key=lambda g: g[TSE])
-    print('loadGenes done')
+            c[key] = sorted(c[key], key=lambda x: x[1])
     return c
 
 
@@ -604,7 +640,12 @@ if config['replot']:
     print('loading file')
     plot(np.load(config['replot']))
 elif config['gfile'] and config['infile']:
-    s = load_genes()
+    s = load_regions(config['gfile'], file_format=config['gfiletype'],
+                     region_part=config['region'], omit_chr=config['chrmomit'],
+                     omit_reg=config['gomit'], only_chr=config['chrmonly'],
+                     only_first=config['ofirst'], n_best=config['nbest'],
+                     min_score=float(config['scorerange'][0]),
+                     max_score=float(config['scorerange'][1]))
     t = query(config['infile'], s)
     if config['matfile']:
         np.save(config['matfile'], t)
