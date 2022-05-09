@@ -1,6 +1,6 @@
 import argparse
 from sys import stdout
-from bisect import bisect_left, bisect_right
+import logging
 from collections import namedtuple
 import numpy as np
 from scipy import interpolate
@@ -484,9 +484,10 @@ def read_score_tsv(fp, omit_chr=(), omit_reg=(), only_first=None,
 
 # DESIGN: Filter after all regions are collected?
 #   Implement a parser class.
-def read_bed(fp, omit_chr=(), omit_reg=(), only_first=False):
+def read_bed(fp, omit_chr=(), omit_reg=(), only_first=False,
+             only_chr=None, n_best=None, max_score=None, min_score=None):
     """Read and parse a bed file.
-    
+
     Parameters
     ----------
     fp : str
@@ -501,6 +502,17 @@ def read_bed(fp, omit_chr=(), omit_reg=(), only_first=False):
         Whether to keep only the first region when the bed file contains
         multiple regions with the same name. This argument will be
         ignored if the bed file does not contain region names.
+    only_chr : Iterable[str]
+        An iterable of chromosome names that will be exclusively
+        considered.
+    n_best : int
+        Number of regions with the highest score to be returned.
+    max_score : float
+        Upper limit (inclusive) of scores. Only regions with scores lower
+        or equal will be returned.
+    min_score : float
+        Lower limit (inclusive) of scores. Only regions with scores higher
+        or equal will be returned.
 
     Returns
     -------
@@ -511,6 +523,8 @@ def read_bed(fp, omit_chr=(), omit_reg=(), only_first=False):
     omit_chr = set(omit_chr)
     omit_reg = set(omit_reg)
     seen_names = set()
+    
+    log_missing_info = False
     with open(fp) as f:
         for line in f:
             line = line.split()
@@ -518,21 +532,29 @@ def read_bed(fp, omit_chr=(), omit_reg=(), only_first=False):
             start = int(start)
             end = int(end)
             name = None
+            score = 0
             pos_strand = True
             # positive strand is assumed if the bed file does not
             # contain the information
-
+            
+            try:
+                name = line[3]
+                score = float(line[4])
+                pos_strand = line[5] == '+'
+            except IndexError:
+                log_missing_info = True
+            
             # Omitting chromosomes
             if chromosome in omit_chr:
                 continue
             
-            if len(line) > 3:
-                name = line[3]
-                # Omitting regions
-                if name in omit_reg:
-                    continue
-                if len(line) > 5:
-                    pos_strand = line[5] == '+'
+            # selecting chromosomes
+            if only_chr and chromosome not in only_chr:
+                continue
+            
+            # Omitting regions
+            if name in omit_reg:
+                continue
             
             # Keeping only first region
             if only_first:
@@ -543,11 +565,32 @@ def read_bed(fp, omit_chr=(), omit_reg=(), only_first=False):
             
             # flipping negative strands (does it make sense?)
             if pos_strand:
-                region = Region(chromosome, start, end, name, pos_strand)
+                region = Region(chromosome, start, end, name, pos_strand,
+                                score)
             else:
-                region = Region(chromosome, end, start, name, pos_strand)
+                region = Region(chromosome, end, start, name, pos_strand,
+                                score)
             
             result.append(region)
+            
+            # n highest score filter
+            if n_best is not None:
+                if n_best < len(result):
+                    n_best_regions = sorted(result,
+                                            key=lambda t: t.score,
+                                            reverse=True)
+                    n_best_regions = set(n_best_regions[:n_best])
+                    result = list(
+                        filter(lambda x: x in n_best_regions, result))
+            
+            # score range filter
+            if max_score is not None:
+                result = list(filter(lambda x: x.score <= max_score))
+            if min_score is not None:
+                result = list(filter(lambda x: x.score >= min_score))
+    
+    if log_missing_info:
+        logging.info('Some optional fields were missing in the file')
     
     return result
 
