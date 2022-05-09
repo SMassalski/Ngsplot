@@ -15,7 +15,7 @@ def load_regions(fp, parser='bed', region_part='body', **kwargs):
     Parameters
     ----------
     fp : str
-        Path of the bed file.
+        Path of the file containing genomic regions.
     parser : str, one of ['bed', 'score_tsv'] or RegionParserBase
              subclass object
         Parser for the file.
@@ -27,7 +27,7 @@ def load_regions(fp, parser='bed', region_part='body', **kwargs):
 
     Returns
     -------
-    Dict[str:List[Tuple[int,int]]]
+    Dict[str,List[Tuple[int,int]]]
         Mapping of chromosomes to starts and ends of regions
 
     Raises
