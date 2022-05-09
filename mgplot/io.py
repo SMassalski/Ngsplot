@@ -95,7 +95,7 @@ class BedParser(RegionParserBase):
     - strand: +
     """
     
-    # TODO: Track line handling
+    # TODO: Check if flipping strands make sense
     def parse(self, fp):
         result = []
         log_missing_info = False
@@ -103,6 +103,8 @@ class BedParser(RegionParserBase):
         with open(fp) as f:
             for line in f:
                 line = line.split()
+                if line[0].lower() == 'track':  # ignoring track lines
+                    continue
                 chromosome, start, end = line[:3]
                 start = int(start)
                 end = int(end)
@@ -117,7 +119,7 @@ class BedParser(RegionParserBase):
                 except IndexError:
                     log_missing_info = True
                 
-                # flipping negative strands (does it make sense?)
+                # flipping negative strands
                 if pos_strand:
                     region = Region(chromosome, start, end, name, pos_strand,
                                     score)
