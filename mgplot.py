@@ -1,4 +1,5 @@
 import argparse
+import logging
 from sys import stdout
 import numpy as np
 from scipy import interpolate
@@ -8,131 +9,162 @@ import seaborn as sb
 from mgplot.io import load_regions
 
 
-pars = argparse.ArgumentParser()
-pars.add_argument('-cf', '--configFile', type=str,
-                  help="File containing configuration arguments and values")
-pars.add_argument('-g', '--gfile', type=str, help="File containing genes")
-pars.add_argument('-i', '--infile', type=str,
-                  help="Bedgraph file containing the signal")
-pars.add_argument('-gt', '--gfiletype', type=str,
-                  help="Type of the file containing genes ['bed','score_tsv'];"
-                       " default = 'bed'")
-pars.add_argument('-rp', '--replot', type=str,
-                  help="File containing matrix to be replotted")
+# DESIGN: Keep defaults out of `add_argument` for argument hierarchy
+parser = argparse.ArgumentParser()
+# Input files
+parser.add_argument('-c', '--config_file', type=str,
+                    help="Path of the file containing configuration arguments"
+                         "and values")
+parser.add_argument('-i', '--input_file', type=str,
+                    help="Path of the bedgraph file containing the signal")
+parser.add_argument('-r', '--region_file', type=str,
+                    help="Path of the file containing genomic regions")
+parser.add_argument('-rf', '--reg_file_format', type=str, default='bed',
+                    help="Format of the file containing regions "
+                         "['bed','score_tsv']")
+# DESIGN: Combine with signal_file (as input file)
+parser.add_argument('-rp', '--replot', type=str,
+                    help="File containing matrix to be replotted")
 
-pars.add_argument('-oh', '--hmfile', type=str, help="Heatmap output filename")
-pars.add_argument('-oa', '--avgfile', type=str,
-                  help="Average profile output filename")
-pars.add_argument('-om', '--matfile', type=str, help="matrix output filename")
+# DESIGN: Remove hm_file, avg_file, mat_file options?
+# Output files
+parser.add_argument('-op', '--out_prefix', type=str,
+                    help="Prefix to be used for output files")
+parser.add_argument('-od', '--out_dir', type=str,
+                    help="Path of the output directory")
+parser.add_argument('-oh', '--hm_file', type=str,
+                    help="Heatmap output filename")
+parser.add_argument('-oa', '--avg_file', type=str,
+                    help="Average profile output filename")
+parser.add_argument('-om', '--mat_file', type=str,
+                    help="Matrix output filename")
 
-pars.add_argument('-r', '--region', type=str,
-                  help="Region to be plotted ['TSS','TSE','genebody']; "
-                       "default = 'TSS'")
-pars.add_argument('-fl', '--flank', type=str,
-                  help="Length of flanking fragments to be plotted with the"
-                       " selected region; default = 3000")
+# DESIGN: Change to body, end, start. Plot should also use 'TSS', 'TSE'
+#   and 'gene_body' labels
+parser.add_argument('-p', '--region_part', type=str, default='TSS',
+                    help="Region part to be plotted ['TSS','TSE','gene_body']")
+parser.add_argument('-fl', '--flank', type=int, default=3000,
+                    help="Length of flanking fragments to be plotted with the"
+                         " selected region part;")
 
-pars.add_argument('-only', '--chrmonly', nargs='+', type=str,
-                  help="The exact names of chromosomes to be"
-                       " exclusively considered")
-pars.add_argument('-co', '--chrmomit', nargs='+', type=str,
-                  help="The exact names of chromosomes to be"
-                       " exclusively considered")
-pars.add_argument('-go', '--gomit', nargs='+', type=str,
-                  help="Names of features to be ignored")
-pars.add_argument('-nb', '--nbest', type=str,
-                  help="The number of features with the best score to be used")
-pars.add_argument('-sr', '--scorerange', nargs=2, type=str,
-                  help="The score range from which the features are selected")
-pars.add_argument('-of', '--ofirst', action='store_true',
-                  help="Whether to use only the first feature with"
-                       " the same name [no value]; default = False")
+# Filter options
+# Elementwise filters
+parser.add_argument('--only_chr', nargs='+', type=str,
+                    help="The names of chromosomes to be exclusively"
+                         " considered")
+parser.add_argument('--omit_chr', nargs='+', type=str,
+                    help="The names of chromosomes to be omitted")
+parser.add_argument('--omit_reg', nargs='+', type=str,
+                    help="Names of features to be ignored")
+parser.add_argument('--min_score', type=float,
+                    help="Ignore regions with scores lower than the given"
+                         " value")
+parser.add_argument('--max_score', type=float,
+                    help="Ignore regions with scores higher than the given"
+                         " value")
+# Aggregate filters
+parser.add_argument('--n_best', type=int,
+                    help="The number of regions with the highest score"
+                         " to be used")
+parser.add_argument('--only_first', action='store_true',
+                    help="Use only the first feature with"
+                         " the same name")
 
-pars.add_argument('-nt', '--nticks', type=str)
-pars.add_argument('-p', '--plottype', type=str,
-                  help="Type of plot to be generated "
-                       "['avgprof','heatmap','both']; default = avgprof")
-pars.add_argument('-s', '--sort', action='store_true',
-                  help="Whether to sort the matrix used for generating "
-                       "a heatmap [no value]; default = False")
-pars.add_argument('-cm', '--cmap', type=str,
-                  help="Colormap used in the heatmap; default = 'Reds'")
-pars.add_argument('-sm', '--smooth', type=str,
-                  help="Smoothing factor used when smoothing the average"
-                       " profile with a spline. Set to 'false' or 0 if you"
-                       " don't want to smooth; default = flank*1e-4")
-pars.add_argument('-ht', '--hmtitle', type=str, help="Title of the heatmap")
-pars.add_argument('-at', '--avgtitle', type=str,
-                  help="Title of the average profile")
-pars.add_argument('-cb', '--cbar', action='store_true',
-                  help='Whether to show a colorbar next to the heatmap'
-                       ' [no value]; default = False')
-pars.add_argument('-hn', '--hnorm', type=str,
-                  help="Type of norm to be used for the heatmap"
-                       " colorscale ['lin','log']; default = 'lin'")
-args = pars.parse_args()
+# Plot options
+# TODO: n_ticks help
+parser.add_argument('--n_ticks', type=str, help="")
+parser.add_argument('--plot_type', type=str,
+                    help="Type of plot to be generated "
+                         "['avg_prof','heatmap','both']; default = avg_prof")
+parser.add_argument('--sort', action='store_true',
+                    help="Whether to sort the matrix used for generating "
+                         "a heatmap")
+parser.add_argument('--cmap', type=str,
+                    help="Colormap used in the heatmap; default = 'Reds'")
+parser.add_argument('--smooth', type=str,
+                    help="Smoothing factor used when smoothing the average"
+                         " profile with a spline. Set to 'false' or 0 if you"
+                         " don't want to smooth; default = flank*1e-4")
+parser.add_argument('--hm_title', type=str, help="Title of the heatmap")
+parser.add_argument('--avg_title', type=str,
+                    help="Title of the average profile")
+parser.add_argument('--cbar', action='store_true',
+                    help="Show a color bar next to the heatmap")
+parser.add_argument('--h_norm', type=str,
+                    help="Type of norm to be used for the heatmap"
+                         " colorscale ['lin','log']; default = 'lin'")
+args = parser.parse_args()
 
-config = {  # default argument values are stored here
-    'region': 'TSS',
-    'flank': '1000',
-    
-    'infile': None,
-    'gfile': None,
-    'gfiletype': 'bed',
-    'replot': None,
-    'dtype': 'int8',
-    
-    'hmfile': None,
-    'avgfile': None,
-    'matfile': None,
-    
-    'plottype': 'avgprof',
-    'cmap': 'Reds',
-    'nticks': '1',
-    'sort': False,
-    'smooth': False,
-    'hmtitle': None,
-    'avgtitle': None,
-    'hnorm': 'lin',
-    'cbar': False,
-    
-    'chrmomit': None,
-    'chrmadd': None,
-    'gomit': None,
-    'chrmonly': None,
-    
-    'nbest': None,
-    'scorerange': None,
-    'ofirst': False
-}
+config = {
+            'region_part': 'TSS',
+            'flank': '1000',
+            
+            # Input options
+            'signal_file': None,
+            'region_file': None,
+            'reg_file_format': 'bed',
+            'replot': None,
+            
+            # Output options
+            'hm_file': None,
+            'avg_file': None,
+            'mat_file': None,
+            
+            # Plot options
+            'plot_type': 'avg',
+            'cmap': 'Reds',
+            'n_ticks': '1',
+            'sort': False,
+            'smooth': False,
+            'hm_title': None,
+            'avg_title': None,
+            'h_norm': 'lin',
+            'cbar': False,
+            
+            # Elementwise filters
+            'omit_chr': None,
+            'omit_reg': None,
+            'only_chr': None,
+            'min_score': None,
+            'max_score': None,
+            
+            # Group filters
+            'n_best': None,
+            'only_first': False
+        }
 
 
 def read_config():
     if args.configFile:
-        f = open(args.configFile, 'r')
-        
-        for line in f:
-            l = line.split()
-            if len(l) == 2:
-                if l[0] in config:
-                    config[l[0]] = l[1]
-        f.close()
+        with open(args.configFile) as f:
+            for i, line in enumerate(f):
+                try:
+                    k, v = line.split()
+                except ValueError:
+                    logging.warning(f'Wrong number of columns in line {i+1}'
+                                    f'of the config file. Skipping...')
+                    continue
+                if k in config:
+                    config[k] = v
     
     # override the config file values with the console values
     for arg in vars(args):
         if getattr(args, arg):
             config[arg] = getattr(args, arg)
     
-    for arg in ['sort', 'ofirst', 'cbar']:
+    for arg in ['sort', 'only_first', 'cbar']:
         if type(config[arg]) == str:
             config[arg] = config[arg].lower() == 'true'
-    for arg in ['gomit', 'chrmomit', 'gindx', 'scorerange', 'chrmonly']:
+    for arg in ['omit_reg', 'omit_chr', 'only_chr']:
         if type(config[arg]) == str:
             config[arg] = config[arg].split(',')
-    for arg in ['flank', 'nticks', 'nbest']:
+    for arg in ['flank', 'n_ticks', 'n_best']:
         if type(config[arg]) == str:
             config[arg] = int(config[arg])
-    for arg in ['region', 'plottype', 'hnorm', 'gfiletype']:
+    for arg in ['min_score', 'max_score']:
+        if type(config[arg]) == str:
+            config[arg] = float(config[arg])
+    for arg in ['region_part', 'plot_type', 'h_norm', 'reg_file_format']:
         if type(config[arg]) == str:
             config[arg] = config[arg].lower()
 
@@ -156,7 +188,7 @@ def query(fname, genome):
                 stdout.write(chrm + '\t' + str(i) + '\r')
                 i += 1
                 # Expansion of queried sequence by flanking sequences
-                if region == 'genebody':
+                if region == 'gene_body':
                     gStart = min(gene) - flank
                     gEnd = max(gene) + flank + 1
                 else:
@@ -214,7 +246,7 @@ def query(fname, genome):
                 else:
                     res = signal[:gEnd - start]
                 
-                if region == "genebody":
+                if region == "gene_body":
                     res = np.append(res[:flank],
                                     [normalize(res[flank:-flank], flank),
                                      res[-flank:]])
@@ -240,8 +272,8 @@ def normalize(arr, size):
 
 def plot(values):
     # plot vars set up
-    genebody = config['region'] == 'genebody'
-    plottype = config['plottype']
+    genebody = config['region_part'] == 'gene_body'
+    plottype = config['plot_type']
     
     if genebody:
         size = 3 * flank
@@ -250,7 +282,7 @@ def plot(values):
         size = 2 * flank + 1
         s = flank / 10000
     
-    nticks = config['nticks']
+    nticks = config['n_ticks']
     if genebody:
         ticks = ['-' + str(i * flank // nticks) for i in
                  reversed(range(1, nticks + 1))] + ['TSS'] + [
@@ -274,6 +306,7 @@ def plot(values):
         else:
             tickvals = np.linspace(0, size, 2 * nticks + 1)
     
+    # TODO: WTF is this?
     if config['smooth']:
         if config['smooth'].lower() == 'true':
             smooth = flank / 10000
@@ -283,7 +316,7 @@ def plot(values):
             smooth = float(config['smooth'])
     
     # plot avgprof
-    if plottype in ['avgprof', 'both']:
+    if plottype in ['avg', 'both']:
         
         print('calculating mean...')
         
@@ -304,11 +337,11 @@ def plot(values):
             plt.xticks(tickvals, ticks)
             plt.xlim((0, size))
             plt.ylim((avgprof.min() - 0.05, avgprof.max() * 1.05))
-            if config['avgtitle']:
-                plt.title(config['avgtitle'])
+            if config['avg_title']:
+                plt.title(config['avg_title'])
             
-            if config['avgfile']:
-                plt.savefig(config['avgfile'])
+            if config['avg_file']:
+                plt.savefig(config['avg_file'])
             else:
                 plt.show()
     # plot heatmap
@@ -325,11 +358,11 @@ def plot(values):
         
         print('plotting...')
         with sb.axes_style("ticks"):
-            if config['hnorm'] == 'lin':
+            if config['h_norm'] == 'lin':
                 plt.imshow(values, aspect='auto', cmap=config['cmap'],
                            norm=colors.Normalize(vmin=values.min(),
                                                  vmax=values.max() * .8))
-            elif config['hnorm'] == 'log':
+            elif config['h_norm'] == 'log':
                 plt.imshow(values, aspect='auto', cmap=config['cmap'],
                            norm=colors.LogNorm())
             
@@ -338,33 +371,35 @@ def plot(values):
             
             if config['cbar']:
                 plt.colorbar()
-            if config['hmtitle']:
-                plt.title(config['hmtitle'])
+            if config['hm_title']:
+                plt.title(config['hm_title'])
             
-            if config['hmfile']:
-                plt.savefig(config['hmfile'])
+            if config['hm_file']:
+                plt.savefig(config['hm_file'])
             else:
                 plt.show()
 
 
 read_config()
-region = config['region']
+region = config['region_part']
 flank = config['flank']
 TSE = region == 'tse'
 
 if config['replot']:
     print('loading file')
     plot(np.load(config['replot']))
-elif config['gfile'] and config['infile']:
-    s = load_regions(config['gfile'], file_format=config['gfiletype'],
-                     region_part=config['region'], omit_chr=config['chrmomit'],
-                     omit_reg=config['gomit'], only_chr=config['chrmonly'],
-                     only_first=config['ofirst'], n_best=config['nbest'],
-                     min_score=float(config['scorerange'][0]),
-                     max_score=float(config['scorerange'][1]))
-    t = query(config['infile'], s)
-    if config['matfile']:
-        np.save(config['matfile'], t)
+elif config['region_file'] and config['input_file']:
+    s = load_regions(config['region_file'],
+                     file_format=config['reg_file_format'],
+                     region_part=config['region_part'],
+                     omit_chr=config['omit_chr'],
+                     omit_reg=config['omit_reg'], only_chr=config['only_chr'],
+                     only_first=config['only_first'], n_best=config['n_best'],
+                     min_score=config['min_score'],
+                     max_score=config['max_score'])
+    t = query(config['input_file'], s)
+    if config['mat_file']:
+        np.save(config['mat_file'], t)
     print('array generated')
     plot(t)
     print('Done')
