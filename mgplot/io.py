@@ -7,9 +7,10 @@ from .util import filter_regions
 # DESIGN: The custom parser probably should be in the main script
 Region = namedtuple('Region', ['chromosome', 'start', 'end', 'name',
                                'positive_strand', 'score'])
+SignalSegment = namedtuple('Signal', ['start', 'end', 'value'])
 
 
-def load_regions(fp, parser='bed', region_part='body', **kwargs):
+def load_regions(fp, parser='bed', **kwargs):
     r"""Load regions from file
 
     Parameters
@@ -19,8 +20,6 @@ def load_regions(fp, parser='bed', region_part='body', **kwargs):
     parser : str, one of ['bed', 'score_tsv'] or RegionParserBase
              subclass object
         Parser for the file.
-    region_part : str
-        Part of the region that will be plotted.
     \*\*kwargs : dict
         Keyword arguments used for filtering. See documentation for
         `filter_regions` and `_keep_region`
@@ -52,14 +51,10 @@ def load_regions(fp, parser='bed', region_part='body', **kwargs):
     # keeps only start and end of regions
     c = {}
     for r in regions:
-        c[r.chromosome] = c.get(r.chromosome, []) + [(r.start, r.end)]
+        if r.chromosome not in c:
+            c[r.chromosome] = []
+        c[r.chromosome].append(r)
     
-    # sort by roi
-    for key in c:
-        if region_part == 'body' or region_part == 'tss':
-            c[key] = sorted(c[key])
-        else:
-            c[key] = sorted(c[key], key=lambda x: x[1])
     return c
 
 
@@ -95,7 +90,6 @@ class BedParser(RegionParserBase):
     - strand: +
     """
     
-    # TODO: Check if flipping strands make sense
     def parse(self, fp):
         result = []
         log_missing_info = False
@@ -119,15 +113,8 @@ class BedParser(RegionParserBase):
                 except IndexError:
                     log_missing_info = True
                 
-                # flipping negative strands
-                if pos_strand:
-                    region = Region(chromosome, start, end, name, pos_strand,
-                                    score)
-                else:
-                    region = Region(chromosome, end, start, name, pos_strand,
-                                    score)
-                
-                result.append(region)
+                result.append(Region(chromosome, start, end, name, pos_strand,
+                                     score))
         
         if log_missing_info:
             logging.info('Some optional fields were missing in the file')
@@ -156,3 +143,31 @@ class ScoreTSVParser(RegionParserBase):
                     Region(chromosome, start, end, name, True, score))
         
         return result
+
+
+def read_bedgraph(fp):
+    """Read and parse a bedgraph file.
+    
+    Parameters
+    ----------
+    fp : str
+        Path to the file
+
+    Returns
+    -------
+    dict
+        Mapping of chromosome names to a list of  corresponding
+        SignalSegments from the bedgraph file.
+    """
+    signal = {}
+    with open(fp) as f:
+        for line in f:
+            line = line.split()
+            if line[0] == 'track':
+                continue
+            chromosome, start, end, value = line
+            if chromosome not in signal:
+                signal[chromosome] = []
+            signal[chromosome].append(SignalSegment(int(start), int(end),
+                                                    float(value)))
+    return signal

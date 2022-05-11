@@ -1,12 +1,12 @@
 import argparse
 import logging
-from sys import stdout
 import numpy as np
 from scipy import interpolate
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import seaborn as sb
-from mgplot.io import load_regions
+from mgplot.io import load_regions, read_bedgraph
+from mgplot.core import query
 
 
 # DESIGN: Keep defaults out of `add_argument` for argument hierarchy
@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-c', '--config_file', type=str,
                     help="Path of the file containing configuration arguments"
                          "and values")
-parser.add_argument('-i', '--input_file', type=str,
+parser.add_argument('-i', '--signal_file', type=str,
                     help="Path of the bedgraph file containing the signal")
 parser.add_argument('-r', '--region_file', type=str,
                     help="Path of the file containing genomic regions")
@@ -45,7 +45,10 @@ parser.add_argument('-p', '--region_part', type=str, default='TSS',
                     help="Region part to be plotted ['TSS','TSE','gene_body']")
 parser.add_argument('-fl', '--flank', type=int, default=3000,
                     help="Length of flanking fragments to be plotted with the"
-                         " selected region part;")
+                         " selected region part")
+parser.add_argument('--body', type=int,
+                    help="Length to which regions will be normalized if"
+                         " region_part 'body' was selected")
 
 # Filter options
 # Elementwise filters
@@ -98,6 +101,7 @@ args = parser.parse_args()
 config = {
             'region_part': 'TSS',
             'flank': '1000',
+            'body': None,
             
             # Input options
             'signal_file': None,
@@ -167,107 +171,6 @@ def read_config():
     for arg in ['region_part', 'plot_type', 'h_norm', 'reg_file_format']:
         if type(config[arg]) == str:
             config[arg] = config[arg].lower()
-
-
-def query(fname, genome):
-    f = open(fname, 'r')
-    result = []
-    line = f.readline().split()
-    
-    while line:
-        chrm = line[0]
-        if chrm in genome:
-            
-            signal = np.zeros(int(line[1]), dtype='int8')
-            
-            start = 0
-            end = int(line[1])
-            
-            i = 1
-            for gene in genome[chrm]:
-                stdout.write(chrm + '\t' + str(i) + '\r')
-                i += 1
-                # Expansion of queried sequence by flanking sequences
-                if region == 'gene_body':
-                    gStart = min(gene) - flank
-                    gEnd = max(gene) + flank + 1
-                else:
-                    gStart = gene[TSE] - flank
-                    gEnd = gene[TSE] + flank + 1
-                
-                if gStart >= end:
-                    while line and int(line[1]) < gStart:
-                        if line[0] != chrm:
-                            break
-                        x, y, z = int(line[1]), int(line[2]), int(line[3])
-                        line = f.readline().split()
-                    if gStart < y:
-                        signal = np.append(
-                            np.array([z] * (y - gStart), dtype='int8'),
-                            np.zeros(int(line[1]) - y, dtype='int8'))
-                    else:
-                        signal = np.zeros(int(line[1]) - gStart, dtype='int8')
-                    start = gStart
-                    end = int(line[1])
-                
-                elif gStart > start:
-                    signal = signal[gStart - start:]
-                    start = gStart
-                
-                elif gStart < start and start == 0:
-                    signal = np.append(np.zeros(start - gStart, dtype='int8'),
-                                       signal)
-                    start = gStart
-                
-                if gEnd + 1 > end:
-                    signal = np.append(signal,
-                                       np.zeros(gEnd - end, dtype='int8'))
-                    x, y, z = int(line[1]), int(line[2]), int(line[3])
-                    signal[x - start:y - start] = z
-                    end = y
-                    line = f.readline().split()
-                    while gEnd + 1 > end:
-                        if not line or line[0] != chrm:
-                            end = gEnd
-                            break
-                        x, y, z = int(line[1]), int(line[2]), int(line[3])
-                        signal[x - start:y - start] = z
-                        end = y
-                        line = f.readline().split()
-                    if gEnd < x:
-                        signal = np.append(signal,
-                                           np.zeros(x - gEnd, dtype='int8'))
-                    if gEnd < y:
-                        signal = np.append(signal, np.array([z] * (y - x),
-                                                            dtype='int8'))
-                
-                if gene[0] > gene[1]:
-                    res = np.flip(signal[:gEnd - start], axis=0)
-                else:
-                    res = signal[:gEnd - start]
-                
-                if region == "gene_body":
-                    res = np.append(res[:flank],
-                                    [normalize(res[flank:-flank], flank),
-                                     res[-flank:]])
-                
-                result.append(res)
-            
-            print(chrm, 'done', i - 1)
-            
-            while line and line[0] == chrm:
-                line = f.readline().split()
-        else:
-            while line and line[0] == chrm:
-                line = f.readline().split()
-    f.close()
-    return np.array(result, dtype='int8')
-
-
-def normalize(arr, size):
-    spl = interpolate.InterpolatedUnivariateSpline(
-        np.linspace(0, len(arr), len(arr)), arr, k=3)
-    return spl(np.linspace(0, len(arr), size))
 
 
 def plot(values):
@@ -388,20 +291,24 @@ TSE = region == 'tse'
 if config['replot']:
     print('loading file')
     plot(np.load(config['replot']))
-elif config['region_file'] and config['input_file']:
-    s = load_regions(config['region_file'],
-                     file_format=config['reg_file_format'],
-                     region_part=config['region_part'],
-                     omit_chr=config['omit_chr'],
-                     omit_reg=config['omit_reg'], only_chr=config['only_chr'],
-                     only_first=config['only_first'], n_best=config['n_best'],
-                     min_score=config['min_score'],
-                     max_score=config['max_score'])
-    t = query(config['input_file'], s)
+elif config['region_file'] and config['signal_file']:
+    regions = load_regions(config['region_file'],
+                           file_format=config['reg_file_format'],
+                           region_part=config['region_part'],
+                           omit_chr=config['omit_chr'],
+                           omit_reg=config['omit_reg'],
+                           only_chr=config['only_chr'],
+                           only_first=config['only_first'],
+                           n_best=config['n_best'],
+                           min_score=config['min_score'],
+                           max_score=config['max_score'])
+    signal = read_bedgraph(config['signal_file'])
+    data = query(regions, signal, region_part=config['region_part'],
+                 flank=config['flank'], body=config['body'])
     if config['mat_file']:
-        np.save(config['mat_file'], t)
+        np.save(config['mat_file'], data)
     print('array generated')
-    plot(t)
+    plot(data)
     print('Done')
 else:
     print("Input files not provided")
