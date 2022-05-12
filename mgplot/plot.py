@@ -101,14 +101,13 @@ def heatmap(x, sort=False, downsample=False, colorbar=False, fig_kw=None,
     return fig, ax
 
 
-# DESIGN: Allow to provide mapping for replacing roi labels
-def make_ticks(region_part, flank, body=None, n_ticks=2):
+def make_ticks(roi, flank, body=None, n_ticks=2, roi_labels=None):
     """Construct ticks and tick labels for the plots
     
     Parameters
     ----------
-    region_part : str, one of ['start', 'end', 'body']
-        Part of the regions that will be included in the plot.
+    roi : str, one of ['start', 'end', 'body']
+        Region of interest that will be included in the plot.
     flank : int
         Length of the flanking segments.
     body : int or None
@@ -117,6 +116,8 @@ def make_ticks(region_part, flank, body=None, n_ticks=2):
     n_ticks : int
         Number of ticks per segment (left flank, right flank and body)
         in addition to start and end ticks.
+    roi_labels : dict
+        Mapping of labels to be used instead of 'start' and 'end'
 
     Returns
     -------
@@ -130,18 +131,23 @@ def make_ticks(region_part, flank, body=None, n_ticks=2):
     ValueError
         If `region_part` == 'body' and `body` is None.
     """
+    if roi_labels is None:
+        roi_labels = {
+            'start': 'start',
+            'end': 'end'
+        }
     roi_label = ''
-    if region_part != 'body':
-        roi_label = 'TSS' if region_part == 'start' else 'TSE'
-    if body is None and region_part == 'body':
+    if roi != 'body':
+        roi_label = 'TSS' if roi == 'start' else 'TSE'
+    if body is None and roi == 'body':
         raise ValueError("Integer value for `body` is required when "
-                         "`region_part` == 'body'")
+                         "`roi` == 'body'")
         
     if n_ticks == 0:
-        ticks = [flank, flank + body] if region_part == 'body' else [flank]
-        tick_labels = ['TSS', 'TSE'] if region_part == 'body' else [roi_label]
+        ticks = [flank, flank + body] if roi == 'body' else [flank]
+        tick_labels = ['TSS', 'TSE'] if roi == 'body' else [roi_label]
         
-    elif region_part == 'body':
+    elif roi == 'body':
         l_flank_labels = [str(x) for x in range(-flank, 0, flank // n_ticks)]
         l_flank_ticks = list(range(0, flank, flank // n_ticks))
 
@@ -161,9 +167,9 @@ def make_ticks(region_part, flank, body=None, n_ticks=2):
             + [flank + body] \
             + r_flank_ticks
         tick_labels = l_flank_labels \
-            + ['TSS'] \
+            + [roi_labels['start']] \
             + body_labels \
-            + ['TSE'] \
+            + [roi_labels['end']] \
             + r_flank_labels
 
     # Ticks for 'start' and 'end'
@@ -173,7 +179,7 @@ def make_ticks(region_part, flank, body=None, n_ticks=2):
             list(range(flank // n_ticks, flank + 1, flank // n_ticks))
         r_flank_labels = [f'+{x}' for x in r_flank_labels]
         tick_labels = l_flank_labels \
-            + [roi_label] \
+            + [roi_labels[roi]] \
             + r_flank_labels
         
         ticks = list(range(0, flank * 2 + 1, flank // n_ticks))

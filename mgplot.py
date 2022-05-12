@@ -11,7 +11,6 @@ from mgplot.plot import heatmap, average_profile, make_ticks, make_norm
 # DESIGN: Keep defaults out of `add_argument` for argument hierarchy
 # TODO:
 #  * Update README
-#  * Rename `region_part` to `roi`
 #  * Add option for showing the plots
 parser = argparse.ArgumentParser()
 # Input files
@@ -43,16 +42,15 @@ parser.add_argument('-oa', '--avg_file', type=str,
 parser.add_argument('-om', '--mat_file', type=str,
                     help="Matrix output filename")
 
-# DESIGN: Change to body, end, start. Plot should also use 'TSS', 'TSE'
-#   and 'gene_body' labels
-parser.add_argument('-p', '--region_part', type=str, default='TSS',
-                    help="Region part to be plotted ['start','end','body']")
+parser.add_argument('--roi', type=str, default='start',
+                    help="Region of interest to be plotted "
+                         "['start','end','body']")
 parser.add_argument('-fl', '--flank', type=int, default=3000,
                     help="Length of flanking fragments to be plotted with the"
-                         " selected region part")
+                         " selected region of interest")
 parser.add_argument('--body', type=int,
                     help="Length to which regions will be normalized if"
-                         " region_part 'body' was selected")
+                         " roi='body' was selected")
 
 # Filter options
 # Elementwise filters
@@ -78,7 +76,6 @@ parser.add_argument('--only_first', action='store_true',
                          " the same name")
 
 # Plot options
-# TODO: n_ticks help
 parser.add_argument('--n_ticks', type=str,
                     help="Number of ticks per plot segment (left flank, right "
                          "flank and body) in addition to TSS and TSE ticks")
@@ -106,7 +103,7 @@ parser.add_argument('--h_norm', type=str,
 args = parser.parse_args()
 
 config = {
-            'region_part': 'TSS',
+            'roi': 'start',
             'flank': '1000',
             'body': None,
             
@@ -175,7 +172,7 @@ def read_config():
     for arg in ['min_score', 'max_score']:
         if type(config[arg]) == str:
             config[arg] = float(config[arg])
-    for arg in ['region_part', 'plot_type', 'h_norm', 'reg_file_format']:
+    for arg in ['roi', 'plot_type', 'h_norm', 'reg_file_format']:
         if type(config[arg]) == str:
             config[arg] = config[arg].lower()
 
@@ -187,7 +184,6 @@ if config['replot']:
 elif config['region_file'] and config['signal_file']:
     regions = load_regions(config['region_file'],
                            file_format=config['reg_file_format'],
-                           region_part=config['region_part'],
                            omit_chr=config['omit_chr'],
                            omit_reg=config['omit_reg'],
                            only_chr=config['only_chr'],
@@ -196,7 +192,7 @@ elif config['region_file'] and config['signal_file']:
                            min_score=config['min_score'],
                            max_score=config['max_score'])
     signal = read_bedgraph(config['signal_file'])
-    data = query(regions, signal, region_part=config['region_part'],
+    data = query(regions, signal, roi=config['roi'],
                  flank=config['flank'], body=config['body'])
     if config['mat_file']:
         np.save(config['mat_file'], data)
@@ -204,7 +200,8 @@ else:
     print("Input files not provided")
     sys.exit()
         
-ticks, tick_labels = make_ticks(config['region_part'], config['flank'])
+ticks, tick_labels = make_ticks(config['roi'], config['flank'],
+                                roi_labels={'start': 'TSS', 'end': 'TSE'})
 plot_kw = dict(xticks=ticks, xticklabels=tick_labels)
 if config['plot_type'] in ['avg_prof', 'both']:
     with sb.axes_style("darkgrid"):

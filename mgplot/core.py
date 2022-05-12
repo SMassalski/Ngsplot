@@ -6,7 +6,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 # TODO:
 #  * Check if flipping strands make sense.
 #  * Tqdm capabilities.
-def query(regions, signal, region_part='body', flank=1000, body=None):
+def query(regions, signal, roi='body', flank=1000, body=None):
     """Construct signals for given regions and region of interest.
 
     Parameters
@@ -18,10 +18,11 @@ def query(regions, signal, region_part='body', flank=1000, body=None):
         Mapping of chromosome names to a list of corresponding
         SignalSegments from which the chromosomes signal will be
         constructed.
-    region_part : str, one of ['start', 'body', 'end']
-        Part of each region for which a signal will be returned.
+    roi : str, one of ['start', 'body', 'end']
+        Region of interest for which a signal will be returned.
         If 'body' is selected the regions will be normalized to a common
-         length equal to `body`.
+         length equal to `body` (final signal for each region will have
+         a length of `body` + 2 * `flank`).
     flank : int
         Number of bp to be added to the start and end of each region.
     body : int or None
@@ -38,18 +39,18 @@ def query(regions, signal, region_part='body', flank=1000, body=None):
     Raises
     ------
     ValueError
-        If `region_part` is not one of the correct values
+        If `roi` is not one of the correct values.
     """
     
     # argument defaults
-    if body is None and region_part == 'body':
+    if body is None and roi == 'body':
         body = max(flank * 2, 1000)
     
     # result array setup
     region_count = 0
     for regs in regions.values():
         region_count += len(regs)
-    normalized_len = 2 * flank + body if region_part == 'body' else 2 * flank
+    normalized_len = 2 * flank + body if roi == 'body' else 2 * flank
     result = np.zeros((region_count, normalized_len), dtype=np.float16)
     
     idx = 0
@@ -70,23 +71,23 @@ def query(regions, signal, region_part='body', flank=1000, body=None):
         for region in regs:
             
             # Start and end points for region parts
-            if region_part == 'start':
+            if roi == 'start':
                 l_flank_start = region.start
                 l_flank_end = l_flank_start + flank
                 r_flank_start = l_flank_end
                 r_flank_end = r_flank_start + flank
-            elif region_part == 'body':
+            elif roi == 'body':
                 l_flank_start = region.start
                 l_flank_end = l_flank_start + flank
                 r_flank_start = region.end + flank
                 r_flank_end = r_flank_start + flank
-            elif region_part == 'end':
+            elif roi == 'end':
                 l_flank_start = region.end
                 l_flank_end = l_flank_start + flank
                 r_flank_start = l_flank_end
                 r_flank_end = r_flank_start + flank
             else:
-                raise ValueError("Incorrect `region_part` value. Must be one"
+                raise ValueError("Incorrect `roi` value. Must be one"
                                  "of: ['start', 'body', 'end']")
             
             # Extracting data
@@ -95,7 +96,7 @@ def query(regions, signal, region_part='body', flank=1000, body=None):
             reg_signal[-flank:] = chr_signal[r_flank_start:r_flank_end]
             # DESIGN : is there a better way to plot body?
             #   Try out normalization of whole sequence
-            if region_part == 'body':
+            if roi == 'body':
                 reg_signal[flank:-flank] = \
                     _normalize(chr_signal[l_flank_end:r_flank_start], body)
             
