@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.interpolate import UnivariateSpline
 from matplotlib import pyplot as plt
+from matplotlib.colors import Normalize, LogNorm
 
 
 # PROPOSED FEATURE: Joint plot
@@ -46,6 +47,8 @@ def average_profile(x, smooth=None, fig_kw=None, **plot_kw):
 
 
 # TODO: Implement downsample
+# FIXME: Somtimes overflow occurs
+#   Right-most tick is not visible
 def heatmap(x, sort=False, downsample=False, colorbar=False, fig_kw=None,
             imshow_kw=None, **plot_kw):
     r"""Plot the average profile of x
@@ -176,3 +179,42 @@ def make_ticks(region_part, flank, body=None, n_ticks=2):
         ticks = list(range(0, flank * 2 + 1, flank // n_ticks))
             
     return ticks, tick_labels
+
+
+def make_norm(x, norm_type='lin', drop=1e-3):
+    """Create norm for normalization of data to 0-1 range
+    
+    Parameters
+    ----------
+    x : arr
+        Array containing the values that will be scaled.
+    norm_type : str, one of ['lin', 'log']
+        A string indicating the type of scale to use:
+        lin: Linear scale (default)
+        log: Logarithmic scale
+    drop : float between 0 (inclusive) and 0.5 (exclusive)
+         Value indicating quantiles that will be ignored when
+         determining the scale.
+         
+         Data values < quantile(`drop`) and > quantile(1-`drop`) will be
+         clipped.
+
+    Returns
+    -------
+    Normalize object
+        The norm.
+    """
+    if norm_type == 'lin':
+        v_min = np.quantile(x, drop)
+        v_max = np.quantile(x, 1-drop)
+        norm = Normalize(v_min, v_max, True)
+        
+    elif norm_type == 'log':
+        v_min = np.nanquantile(np.where(x > 0, x, np.nan), drop)
+        v_max = np.quantile(x, 1 - drop)
+        norm = LogNorm(v_min, v_max, True)
+    else:
+        raise ValueError(f'Unrecognized norm_type {norm_type}')
+        
+    return norm
+    

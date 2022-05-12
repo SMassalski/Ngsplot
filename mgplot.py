@@ -2,11 +2,10 @@ import argparse
 import sys
 import logging
 import numpy as np
-from matplotlib.colors import Normalize, LogNorm
 import seaborn as sb
 from mgplot.io import load_regions, read_bedgraph
 from mgplot.core import query
-from mgplot.plot import heatmap, average_profile, make_ticks
+from mgplot.plot import heatmap, average_profile, make_ticks, make_norm
 
 
 # DESIGN: Keep defaults out of `add_argument` for argument hierarchy
@@ -216,12 +215,8 @@ if config['plot_type'] in ['avg_prof', 'both']:
         ap_fig.save(config['avg_file'])
         
 if config['plot_type'] in ['heatmap', 'both']:
-    # TODO: Make norms work better.
-    if config['h_norm'] == 'log':
-        norm = LogNorm()
-    else:
-        norm = Normalize(data.min(), data.max())
-    imshow_kw = dict(norm=norm, cmap=config['cmap'])
+    imshow_kw = dict(norm=make_norm(data, config['h_norm']),
+                     cmap=config['cmap'])
     hm_fig, hm_ax = heatmap(data, sort=config['sort'],
                             colorbar=config['colorbar'],
                             title=config['hm_title'],
