@@ -1,15 +1,19 @@
 import argparse
+import sys
 import logging
 import numpy as np
-from scipy import interpolate
-import matplotlib.pyplot as plt
-import matplotlib.colors as colors
+from matplotlib.colors import Normalize, LogNorm
 import seaborn as sb
 from mgplot.io import load_regions, read_bedgraph
 from mgplot.core import query
+from mgplot.plot import heatmap, average_profile, make_ticks
 
 
 # DESIGN: Keep defaults out of `add_argument` for argument hierarchy
+# TODO:
+#  * Update README
+#  * Rename `region_part` to `roi`
+#  * Add option for showing the plots
 parser = argparse.ArgumentParser()
 # Input files
 parser.add_argument('-c', '--config_file', type=str,
@@ -27,6 +31,7 @@ parser.add_argument('-rp', '--replot', type=str,
                     help="File containing matrix to be replotted")
 
 # DESIGN: Remove hm_file, avg_file, mat_file options?
+# TODO: Implement out_prefix and out_dir
 # Output files
 parser.add_argument('-op', '--out_prefix', type=str,
                     help="Prefix to be used for output files")
@@ -42,7 +47,7 @@ parser.add_argument('-om', '--mat_file', type=str,
 # DESIGN: Change to body, end, start. Plot should also use 'TSS', 'TSE'
 #   and 'gene_body' labels
 parser.add_argument('-p', '--region_part', type=str, default='TSS',
-                    help="Region part to be plotted ['TSS','TSE','gene_body']")
+                    help="Region part to be plotted ['start','end','body']")
 parser.add_argument('-fl', '--flank', type=int, default=3000,
                     help="Length of flanking fragments to be plotted with the"
                          " selected region part")
@@ -75,7 +80,9 @@ parser.add_argument('--only_first', action='store_true',
 
 # Plot options
 # TODO: n_ticks help
-parser.add_argument('--n_ticks', type=str, help="")
+parser.add_argument('--n_ticks', type=str,
+                    help="Number of ticks per plot segment (left flank, right "
+                         "flank and body) in addition to TSS and TSE ticks")
 parser.add_argument('--plot_type', type=str,
                     help="Type of plot to be generated "
                          "['avg_prof','heatmap','both']; default = avg_prof")
@@ -85,9 +92,10 @@ parser.add_argument('--sort', action='store_true',
 parser.add_argument('--cmap', type=str,
                     help="Colormap used in the heatmap; default = 'Reds'")
 parser.add_argument('--smooth', type=str,
-                    help="Smoothing factor used when smoothing the average"
-                         " profile with a spline. Set to 'false' or 0 if you"
-                         " don't want to smooth; default = flank*1e-4")
+                    help="Smoothing factor used when smoothing the"
+                         " average profile with a spline. If set to 'true' "
+                         " <standard deviation> / 2 will be used. "
+                         "Set to 0 for no smoothing.")
 parser.add_argument('--hm_title', type=str, help="Title of the heatmap")
 parser.add_argument('--avg_title', type=str,
                     help="Title of the average profile")
@@ -173,124 +181,10 @@ def read_config():
             config[arg] = config[arg].lower()
 
 
-def plot(values):
-    # plot vars set up
-    genebody = config['region_part'] == 'gene_body'
-    plottype = config['plot_type']
-    
-    if genebody:
-        size = 3 * flank
-        s = flank / 10000
-    else:
-        size = 2 * flank + 1
-        s = flank / 10000
-    
-    nticks = config['n_ticks']
-    if genebody:
-        ticks = ['-' + str(i * flank // nticks) for i in
-                 reversed(range(1, nticks + 1))] + ['TSS'] + [
-                    '%.2f' % float(i / nticks) for i in range(1, nticks)] + [
-                    'TSE'] + ['+' + str(i * flank // nticks) for i in
-                              range(1, nticks + 1)]
-        if nticks == 0:
-            tickvals = [flank, 2 * flank]
-        else:
-            tickvals = [i * flank // nticks for i in range(0, nticks)] + [
-                flank + i * flank // nticks for i in range(0, nticks)] + [
-                           2 * flank + i * flank // nticks for i in
-                           range(0, nticks + 1)]
-    else:
-        ticks = ['-' + str(i * flank // nticks) for i in
-                 reversed(range(1, nticks + 1))] + [region.upper()] + [
-                    '+' + str(i * flank // nticks) for i in
-                    range(1, nticks + 1)]
-        if nticks == 0:
-            tickvals = [flank]
-        else:
-            tickvals = np.linspace(0, size, 2 * nticks + 1)
-    
-    # TODO: WTF is this?
-    if config['smooth']:
-        if config['smooth'].lower() == 'true':
-            smooth = flank / 10000
-        elif config['smooth'].lower() == 'false':
-            config['smooth'] = False
-        else:
-            smooth = float(config['smooth'])
-    
-    # plot avgprof
-    if plottype in ['avg', 'both']:
-        
-        print('calculating mean...')
-        
-        if config['smooth']:
-            spl = interpolate.UnivariateSpline(np.linspace(0, size, size),
-                                               np.mean(values, axis=0,
-                                                       dtype='float16'),
-                                               s=smooth)
-            avgprof = spl(np.linspace(0, size, size))
-        
-        else:
-            avgprof = np.mean(values, axis=0, dtype='float16')
-        
-        print('plotting...')
-        with sb.axes_style("darkgrid"):
-            plt.plot(np.linspace(0, size, size), avgprof)
-            
-            plt.xticks(tickvals, ticks)
-            plt.xlim((0, size))
-            plt.ylim((avgprof.min() - 0.05, avgprof.max() * 1.05))
-            if config['avg_title']:
-                plt.title(config['avg_title'])
-            
-            if config['avg_file']:
-                plt.savefig(config['avg_file'])
-            else:
-                plt.show()
-    # plot heatmap
-    if plottype in ['heatmap', 'both']:
-        
-        if config['sort']:
-            print('sorting...')
-            b = np.sum(values, axis=1) * -1
-            indx = b.argsort()
-            values = np.take(values, indx, axis=0)
-        
-        if plottype == 'both':
-            plt.figure()
-        
-        print('plotting...')
-        with sb.axes_style("ticks"):
-            if config['h_norm'] == 'lin':
-                plt.imshow(values, aspect='auto', cmap=config['cmap'],
-                           norm=colors.Normalize(vmin=values.min(),
-                                                 vmax=values.max() * .8))
-            elif config['h_norm'] == 'log':
-                plt.imshow(values, aspect='auto', cmap=config['cmap'],
-                           norm=colors.LogNorm())
-            
-            plt.xticks(tickvals, ticks)
-            plt.xlim((0, size))
-            
-            if config['cbar']:
-                plt.colorbar()
-            if config['hm_title']:
-                plt.title(config['hm_title'])
-            
-            if config['hm_file']:
-                plt.savefig(config['hm_file'])
-            else:
-                plt.show()
-
-
 read_config()
-region = config['region_part']
-flank = config['flank']
-TSE = region == 'tse'
 
 if config['replot']:
-    print('loading file')
-    plot(np.load(config['replot']))
+    data = np.load(config['replot'])
 elif config['region_file'] and config['signal_file']:
     regions = load_regions(config['region_file'],
                            file_format=config['reg_file_format'],
@@ -307,8 +201,31 @@ elif config['region_file'] and config['signal_file']:
                  flank=config['flank'], body=config['body'])
     if config['mat_file']:
         np.save(config['mat_file'], data)
-    print('array generated')
-    plot(data)
-    print('Done')
 else:
     print("Input files not provided")
+    sys.exit()
+        
+ticks, tick_labels = make_ticks(config['region_part'], config['flank'])
+plot_kw = dict(xticks=ticks, xticklabels=tick_labels)
+if config['plot_type'] in ['avg_prof', 'both']:
+    with sb.axes_style("darkgrid"):
+        ap_fig, ap_ax = average_profile(data, smooth=config['smooth'],
+                                        title=config['avg_title'],
+                                        **plot_kw)
+    if config['avg_file'] is not None:
+        ap_fig.save(config['avg_file'])
+        
+if config['plot_type'] in ['heatmap', 'both']:
+    # TODO: Make norms work better.
+    if config['h_norm'] == 'log':
+        norm = LogNorm()
+    else:
+        norm = Normalize(data.min(), data.max())
+    imshow_kw = dict(norm=norm, cmap=config['cmap'])
+    hm_fig, hm_ax = heatmap(data, sort=config['sort'],
+                            colorbar=config['colorbar'],
+                            title=config['hm_title'],
+                            imshow_kw=imshow_kw, **plot_kw)
+    
+    if config['hm_file'] is not None:
+        hm_fig.save(config['hm_file'])
