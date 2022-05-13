@@ -105,3 +105,24 @@ def _keep_region(region, omit_chr=(), omit_reg=(), only_chr=None,
         return False
     
     return True
+
+
+def group_by_chromosome(x):
+    """Group a collection of SignalSegments or Regions by chromosome
+    
+    Parameters
+    ----------
+    x : Iterable
+        Collection of SignalSegments or Regions.
+
+    Returns
+    -------
+    dict
+        Mapping of chromosome names to corresponding elements
+    """
+    result = []
+    for i in x:
+        if i.chromosome not in result:
+            result[i.chromosome] = []
+        result[i.chromosome].append(i)
+    return result

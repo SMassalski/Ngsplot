@@ -1,6 +1,13 @@
 import logging
+from collections import namedtuple
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
+from .util import group_by_chromosome
+
+
+Region = namedtuple('Region', ['chromosome', 'start', 'end', 'name',
+                               'positive_strand', 'score'])
+SignalSegment = namedtuple('Signal', ['chromosome', 'start', 'end', 'value'])
 
 
 # TODO:
@@ -11,11 +18,9 @@ def query(regions, signal, roi='body', flank=1000, body=None):
 
     Parameters
     ----------
-    regions : dict
-        Mapping of chromosome names to a list of Regions located on that
-        chromosome.
-    signal : dict
-        Mapping of chromosome names to a list of corresponding
+    regions : list
+        List of regions
+    signal : list
         SignalSegments from which the chromosomes signal will be
         constructed.
     roi : str, one of ['start', 'body', 'end']
@@ -41,6 +46,8 @@ def query(regions, signal, roi='body', flank=1000, body=None):
     ValueError
         If `roi` is not one of the correct values.
     """
+    signal = group_by_chromosome(signal)
+    regions = group_by_chromosome(regions)
     
     # argument defaults
     if body is None and roi == 'body':

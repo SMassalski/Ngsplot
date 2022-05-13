@@ -3,9 +3,10 @@ import sys
 import logging
 import numpy as np
 import seaborn as sb
-from mgplot.io import load_regions, read_bedgraph
-from mgplot.core import query
+from mgplot.io import read_bedgraph, RegionParserBase, BedParser
+from mgplot.core import query, Region
 from mgplot.plot import heatmap, average_profile, make_ticks, make_norm
+from mgplot.util import filter_regions
 
 
 # DESIGN: Keep defaults out of `add_argument` for argument hierarchy
@@ -116,12 +117,19 @@ def main():
     if c.replot:
         data = np.load(c.replot)
     elif c.region_file and c.signal_file:
-        regions = load_regions(c.region_file,
-                               file_format=c.reg_file_format,
-                               omit_chr=c.omit_chr, omit_reg=c.omit_reg,
-                               only_chr=c.only_chr, only_first=c.only_first,
-                               n_best=c.n_best, min_score=c.min_score,
-                               max_score=c.max_score)
+        if c.reg_file_format == 'bed':
+            parser = BedParser()
+        elif c.reg_file_format == 'score_tsv':
+            parser = ScoreTSVParser()
+            
+        else:
+            raise ValueError(f'Unrecognized file_format {c.reg_file_format}')
+
+        regions = parser.parse(c.region_file)
+        regions = filter_regions(regions, omit_chr=c.omit_chr,
+                                 omit_reg=c.omit_reg, only_chr=c.only_chr,
+                                 only_first=c.only_first, n_best=c.n_best,
+                                 min_score=c.min_score, max_score=c.max_score)
         signal = read_bedgraph(c.signal_file)
         data = query(regions, signal, roi=c.roi,
                      flank=c.flank, body=c.body)
@@ -247,6 +255,30 @@ class Config:
                 setattr(self, arg, self.convert_type(val))
             if type(arg) == bool:
                 setattr(self, arg, val or getattr(self, arg))
+
+
+class ScoreTSVParser(RegionParserBase):
+    """Parser for a custom tsv format"""
+    
+    def parse(self, fp):
+        result = []
+        
+        with open(fp, 'r') as f:
+            for line in f:
+                line = line.split('_')
+                name = line[1]
+                line = line[-1].split(':')
+                chromosome = line[0][:-1]
+                line = line[1].split('\t')
+                score = int(line[1])
+                line = line[0].split('-')
+                start = int(line[0])
+                end = int(line[1])
+                
+                result.append(
+                    Region(chromosome, start, end, name, True, score))
+        
+        return result
 
 
 if __name__ == '__main__':
