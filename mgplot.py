@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 import logging
 import numpy as np
@@ -9,10 +10,9 @@ from mgplot.plot import heatmap, average_profile, make_ticks, make_norm
 from mgplot.util import filter_regions
 
 
-# DESIGN: Keep defaults out of `add_argument` for argument hierarchy
 # TODO:
 #  * Update README
-#  * Add option for showing the plots
+#  * Tests
 def get_cli_args(argv):
     parser = argparse.ArgumentParser()
     # Input files
@@ -23,36 +23,35 @@ def get_cli_args(argv):
                         help="Path of the bedgraph file containing the signal")
     parser.add_argument('-r', '--region_file', type=str,
                         help="Path of the file containing genomic regions")
-    parser.add_argument('-rf', '--reg_file_format', type=str, default='bed',
+    parser.add_argument('--format', type=str,
                         help="Format of the file containing regions "
-                             "['bed','score_tsv']")
-    # DESIGN: Combine with signal_file (as input file)
-    parser.add_argument('-rp', '--replot', type=str,
+                             "[bed, score_tsv], default=bed")
+    parser.add_argument('--replot', type=str,
                         help="File containing matrix to be replotted")
     
-    # DESIGN: Remove hm_file, avg_file, mat_file options?
-    # TODO: Implement out_prefix and out_dir
     # Output files
-    parser.add_argument('-op', '--out_prefix', type=str,
-                        help="Prefix to be used for output files")
-    parser.add_argument('-od', '--out_dir', type=str,
-                        help="Path of the output directory")
-    parser.add_argument('-oh', '--hm_file', type=str,
-                        help="Heatmap output filename")
-    parser.add_argument('-oa', '--avg_file', type=str,
-                        help="Average profile output filename")
-    parser.add_argument('-om', '--mat_file', type=str,
-                        help="Matrix output filename")
+    parser.add_argument('--out_prefix', type=str,
+                        help="Prefix to be used for output files;"
+                             " default=mgplot")
+    parser.add_argument('--out_dir', type=str,
+                        help="Path of the output directory;"
+                             " default=<current working directory>")
+    parser.add_argument('--out_format', type=str,
+                        help="Format of plot output files; "
+                             "[png, pdf, svg], default=png")
+    parser.add_argument('--save_data', action='store_true',
+                        help="Save data for replotting")
     
-    parser.add_argument('--roi', type=str, default='start',
-                        help="Region of interest to be plotted "
-                             "['start','end','body']")
-    parser.add_argument('-fl', '--flank', type=int, default=3000,
+    # General
+    parser.add_argument('--roi', type=str,
+                        help="Region of interest to be plotted; "
+                             "[start,end,body], default=start")
+    parser.add_argument('-fl', '--flank', type=int,
                         help="Length of flanking fragments to be plotted with"
-                             " the selected region of interest")
+                             " the selected region of interest; default=3000")
     parser.add_argument('--body', type=int,
                         help="Length to which regions will be normalized if"
-                             " roi='body' was selected")
+                             " roi=body was selected")
     
     # Filter options
     # Elementwise filters
@@ -84,13 +83,13 @@ def get_cli_args(argv):
                              "TSE ticks")
     parser.add_argument('--plot_type', type=str,
                         help="Type of plot to be generated "
-                             "['avg_prof','heatmap','both']; default = "
-                             "avg_prof")
+                             "[avg_prof, heatmap, both]; default=avg_prof")
     parser.add_argument('--sort', action='store_true',
                         help="Whether to sort the matrix used for generating "
                              "a heatmap")
     parser.add_argument('--cmap', type=str,
-                        help="Colormap used in the heatmap; default = 'Reds'")
+                        help="Matplotlib compatible colormap name for "
+                             "the heatmap; default=Reds")
     parser.add_argument('--smooth', type=str,
                         help="Smoothing factor used when smoothing the"
                              " average profile with a spline. If set to 'true'"
@@ -103,28 +102,34 @@ def get_cli_args(argv):
                         help="Show a color bar next to the heatmap")
     parser.add_argument('--h_norm', type=str,
                         help="Type of norm to be used for the heatmap"
-                             " colorscale ['lin','log']; default = 'lin'")
+                             " colorscale; [lin, log]; default=lin")
     return parser.parse_args(argv)
 
 
 def main():
-    args = get_cli_args(sys.argv[1:])
+    # Config 
+    args = get_cli_args(sys.argv[1:])  # Ignoring script path
     c = Config()
     if args.config_file is not None:
         c.from_file(args.config_file)
     c.update(vars(args))
 
+    # Data from npy file
     if c.replot:
         data = np.load(c.replot)
+        
     elif c.region_file and c.signal_file:
-        if c.reg_file_format == 'bed':
+        
+        # Parser selection
+        if c.format == 'bed':
             parser = BedParser()
-        elif c.reg_file_format == 'score_tsv':
+        elif c.format == 'score_tsv':
             parser = ScoreTSVParser()
             
         else:
-            raise ValueError(f'Unrecognized file_format {c.reg_file_format}')
+            raise ValueError(f'Unrecognized file_format {c.format}')
 
+        # IO, Filtering and Data Extraction
         regions = parser.parse(c.region_file)
         regions = filter_regions(regions, omit_chr=c.omit_chr,
                                  omit_reg=c.omit_reg, only_chr=c.only_chr,
@@ -133,32 +138,45 @@ def main():
         signal = read_bedgraph(c.signal_file)
         data = query(regions, signal, roi=c.roi,
                      flank=c.flank, body=c.body)
-        if c.mat_file:
-            np.save(c.mat_file, data)
+        
+        # Saving data here in case plotting causes a crash
+        if c.save_data:
+            np.save(os.path.join(c.out_dir, c.out_prefix + '_data.npy'))
+
     else:
         print("Input files not provided")
         sys.exit()
 
+    # Plotting
+    # Ticks
     ticks, tick_labels = make_ticks(c.roi, c.flank,
                                     roi_labels={'start': 'TSS', 'end': 'TSE'})
-    plot_kw = dict(xticks=ticks, xticklabels=tick_labels)
+    tick_args = dict(xticks=ticks, xticklabels=tick_labels)
+    
+    ap_fig = None
+    hm_fig = None
     if c.plot_type in ['avg_prof', 'both']:
         with sb.axes_style("darkgrid"):
             ap_fig, ap_ax = average_profile(data, smooth=c.smooth,
                                             title=c.avg_title,
-                                            **plot_kw)
-        if c.avg_file is not None:
-            ap_fig.save(c.avg_file)
+                                            **tick_args)
 
     if c.plot_type in ['heatmap', 'both']:
         imshow_kw = dict(norm=make_norm(data, c.h_norm),
                          cmap=c.cmap)
         hm_fig, hm_ax = heatmap(data, sort=c.sort, colorbar=c.colorbar,
                                 title=c.hm_title, imshow_kw=imshow_kw,
-                                **plot_kw)
+                                **tick_args)
     
-        if c.hm_file is not None:
-            hm_fig.save(c.hm_file)
+    # Output
+    if ap_fig is not None:
+        ap_fig.save(os.path.join(c.out_dir,
+                                 f'{c.out_prefix}_average_profile'
+                                 f'.{c.out_format}'))
+        
+    if hm_fig is not None:
+        hm_fig.save(os.path.join(c.out_dir, f'{c.out_prefix}_heatmap'
+                                            f'.{c.out_format}'))
 
 
 class Config:
@@ -172,13 +190,14 @@ class Config:
         # input
         self.signal_file = None
         self.region_file = None
-        self.reg_file_format = 'bed'
+        self.format = 'bed'
         self.replot = None
         
         # output
-        self.mat_file = None
-        self.avg_file = None
-        self.hm_file = None
+        self.out_dir = os.getcwd()
+        self.out_prefix = 'mgplot'
+        self.out_format = 'png'
+        self.save_data = False
         
         # filters
         self.omit_chr = None
@@ -248,7 +267,7 @@ class Config:
         args : dict
             Mapping of option name to value.
         """
-        for arg, val in args:
+        for arg, val in args.items():
             if val is None:
                 continue
             if arg in ['smooth']:
