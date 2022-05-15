@@ -31,19 +31,21 @@ def filter_regions(regions, only_first=False,
         Filtered list of regions.
     """
     # elementwise filter
-    regions = list(filter(lambda x: _keep_region(x, **kwargs), regions))
-    result = []
+    result = list(filter(lambda x: keep_region(x, **kwargs), regions))
     
     # only_first filter
-    seen_names = set()
+    
     if only_first:
-        for r in regions:
+        seen_names = set()
+        tmp_result = []
+        for r in result:
             if r.name in seen_names:
                 continue
             else:
                 if r.name is not None:
                     seen_names.add(r.name)
-                result.append(r)
+                tmp_result.append(r)
+        result = tmp_result
     
     # n_best filter
     if n_best is not None:
