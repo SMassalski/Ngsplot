@@ -257,10 +257,13 @@ class Config:
                     k, v = line.split()
                 except ValueError:
                     logging.warning(f'Wrong number of columns in line {i+1}'
-                                    f'of the config file. Skipping...')
+                                    f' of the config file. Skipping...')
                     continue
                 if k in self.__dict__:
                     setattr(self, k, self.convert_type(v))
+                else:
+                    logging.warning(f'Unrecognized argument "{k}"'
+                                    f' in line {i+1}')
                 
     def update(self, args):
         """Set option values from dict
@@ -275,8 +278,10 @@ class Config:
                 continue
             if arg in ['smooth']:
                 setattr(self, arg, self.convert_type(val))
-            if type(arg) == bool:
+            elif isinstance(getattr(self, arg), bool):
                 setattr(self, arg, val or getattr(self, arg))
+            else:
+                setattr(self, arg, val)
 
 
 class ScoreTSVParser(RegionParserBase):
