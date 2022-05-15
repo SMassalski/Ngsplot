@@ -13,6 +13,9 @@ from mgplot.util import filter_regions
 # TODO:
 #  * Update README
 #  * Tests
+#  * Export settings
+#  * Script help description in addition to argument helps
+#       (Write a docstring and pass __doc__ to ArgumentParser())
 def get_cli_args(argv):
     parser = argparse.ArgumentParser()
     # Input files
@@ -106,9 +109,9 @@ def get_cli_args(argv):
     return parser.parse_args(argv)
 
 
-def main():
+def main(argv):
     # Config 
-    args = get_cli_args(sys.argv[1:])  # Ignoring script path
+    args = get_cli_args(argv)  # Ignoring script path
     c = Config()
     if args.config_file is not None:
         c.from_file(args.config_file)
@@ -301,4 +304,4 @@ class ScoreTSVParser(RegionParserBase):
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1:])
