@@ -16,6 +16,7 @@ from mgplot.util import filter_regions
 #  * Export settings
 #  * Script help description in addition to argument helps
 #       (Write a docstring and pass __doc__ to ArgumentParser())
+#  * Raise value error instead of warning?
 def get_cli_args(argv):
     parser = argparse.ArgumentParser()
     # Input files
@@ -101,7 +102,7 @@ def get_cli_args(argv):
     parser.add_argument('--hm_title', type=str, help="Title of the heatmap")
     parser.add_argument('--avg_title', type=str,
                         help="Title of the average profile")
-    parser.add_argument('--cbar', action='store_true',
+    parser.add_argument('--colorbar', action='store_true',
                         help="Show a color bar next to the heatmap")
     parser.add_argument('--h_norm', type=str,
                         help="Type of norm to be used for the heatmap"
