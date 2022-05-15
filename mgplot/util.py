@@ -57,8 +57,8 @@ def filter_regions(regions, only_first=False,
     return result
 
 
-def _keep_region(region, omit_chr=(), omit_reg=(), only_chr=None,
-                 max_score=None, min_score=None, **_):
+def keep_region(region, omit_chr=(), omit_reg=(), only_chr=None,
+                max_score=None, min_score=None, **_):
     r"""Check if a region satisfies filtering conditions.
 
     Parameters
@@ -99,9 +99,9 @@ def _keep_region(region, omit_chr=(), omit_reg=(), only_chr=None,
         return False
     
     # score range filter
-    if max_score is not None and region.score <= max_score:
+    if max_score is not None and region.score < max_score:
         return False
-    if min_score is not None and region.score >= min_score:
+    if min_score is not None and region.score > min_score:
         return False
     
     return True
@@ -120,7 +120,7 @@ def group_by_chromosome(x):
     dict
         Mapping of chromosome names to corresponding elements
     """
-    result = []
+    result = {}
     for i in x:
         if i.chromosome not in result:
             result[i.chromosome] = []
