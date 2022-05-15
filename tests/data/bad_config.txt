@@ -1,0 +1,6 @@
+flank 1
+sort
+
+signal_file fake_file.bedGraph
+fake_argument 42
+two_values 3 4

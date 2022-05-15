@@ -1,0 +1,8 @@
+sort True
+flank 1
+signal_file fake_file.bedGraph
+region_file fake_file.bed
+roi end
+min_score 10.13
+colorbar false
+omit_chr chr1,chr2
