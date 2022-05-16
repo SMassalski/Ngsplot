@@ -57,7 +57,7 @@ def query(regions, signal, roi='body', flank=1000, body=None):
     region_count = 0
     for regs in regions.values():
         region_count += len(regs)
-    normalized_len = 2 * flank + body if roi == 'body' else 2 * flank
+    normalized_len = 2 * flank + body if roi == 'body' else 2 * flank + 1
     result = np.zeros((region_count, normalized_len), dtype=np.float16)
     
     idx = 0
@@ -81,17 +81,17 @@ def query(regions, signal, roi='body', flank=1000, body=None):
             if roi == 'start':
                 l_flank_start = region.start
                 l_flank_end = l_flank_start + flank
-                r_flank_start = l_flank_end
+                r_flank_start = l_flank_end + 1
                 r_flank_end = r_flank_start + flank
             elif roi == 'body':
                 l_flank_start = region.start
                 l_flank_end = l_flank_start + flank
-                r_flank_start = region.end + flank
+                r_flank_start = region.end + flank + 1
                 r_flank_end = r_flank_start + flank
             elif roi == 'end':
                 l_flank_start = region.end
                 l_flank_end = l_flank_start + flank
-                r_flank_start = l_flank_end
+                r_flank_start = l_flank_end + 1
                 r_flank_end = r_flank_start + flank
             else:
                 raise ValueError("Incorrect `roi` value. Must be one"
@@ -99,13 +99,16 @@ def query(regions, signal, roi='body', flank=1000, body=None):
             
             # Extracting data
             reg_signal = np.zeros(normalized_len)
-            reg_signal[:flank] = chr_signal[l_flank_start:l_flank_end]
-            reg_signal[-flank:] = chr_signal[r_flank_start:r_flank_end]
+            if flank > 0:  # Erroneous behavior for right flank when flank == 0
+                reg_signal[:flank] = chr_signal[l_flank_start:l_flank_end]
+                reg_signal[-flank:] = chr_signal[r_flank_start:r_flank_end]
             # DESIGN : is there a better way to plot body?
             #   Try out normalization of whole sequence
             if roi == 'body':
-                reg_signal[flank:-flank] = \
-                    _normalize(chr_signal[l_flank_end:r_flank_start], body)
+                reg_signal[flank:-flank or body] = \
+                    normalize(chr_signal[l_flank_end:r_flank_start], body)
+            else:
+                reg_signal[flank] = chr_signal[l_flank_end]
             
             # Flipping regions on negative strand
             if not region.positive_strand:
@@ -116,7 +119,7 @@ def query(regions, signal, roi='body', flank=1000, body=None):
     return result
 
 
-def _normalize(arr, size):
+def normalize(arr, size):
     """Normalize an array to a specific length"""
     spl = InterpolatedUnivariateSpline(
         np.linspace(0, len(arr), len(arr)), arr, k=3)

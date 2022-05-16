@@ -55,6 +55,13 @@ def test_query_default_body(signal, regions):
     assert query(regions, signal, roi='body', flank=1000).shape == (3, 4000)
     assert query(regions, signal, roi='body', flank=10).shape == (3, 1020)
     assert query(regions, signal, roi='body', flank=0).shape == (3, 1000)
+    
+
+def test_query_zero_flank(signal, regions):
+    assert query(regions, signal, roi='start', flank=0).shape == (3, 1)
+    assert query(regions, signal, roi='end', flank=0).shape == (3, 1)
+    result = query(regions, signal, roi='body', flank=0, body=10)
+    assert result.shape == (3, 10)
 
 
 def test_query_start(signal, regions):
