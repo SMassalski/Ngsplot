@@ -3,11 +3,15 @@ import os
 
 import pytest
 
-from mgplot.io import BedParser
+from mgplot.io import BedParser, read_bedgraph
+from mgplot.core import SignalSegment
+
+
+data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
 
 
 class TestBedParsers:
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
+    
     main_fp = os.path.join(data_dir, 'hg38_short.testbed')
     track_line_fp = os.path.join(data_dir,
                                  'hg38_short_with_track_line.testbed')
@@ -46,3 +50,30 @@ class TestBedParsers:
         assert isinstance(region.name, str)
         assert isinstance(region.score, float)
         assert isinstance(region.positive_strand, bool)
+
+
+@pytest.fixture
+def bedgraph_segments():
+    return [
+        SignalSegment('chr1', 20, 277, 5.16),
+        SignalSegment('chr1', 277, 495, 7.92),
+        SignalSegment('chr1', 495, 500, -4.22),
+        SignalSegment('chr5', 20, 291, -9.35),
+        SignalSegment('chr5', 291, 480, 5.74),
+        SignalSegment('chr5', 480, 500, 5.99),
+        SignalSegment('chrM', 20, 79, 6.04),
+        SignalSegment('chrM', 79, 226, -8.45),
+        SignalSegment('chrM', 226, 319, 5.0),
+        SignalSegment('chrM', 319, 500, -9.99)
+    ]
+
+
+def test_read_bedgraph(bedgraph_segments):
+    assert read_bedgraph(os.path.join(data_dir, 'test.bedGraph')) == \
+           bedgraph_segments
+
+
+def test_read_bedgraph_with_track_lines(bedgraph_segments):
+    read = read_bedgraph(os.path.join(data_dir,
+                                      'test_with_track_lines.bedGraph'))
+    assert read == bedgraph_segments
