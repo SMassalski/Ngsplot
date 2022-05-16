@@ -20,7 +20,6 @@ class RegionParserBase(ABC):
         List[Regions]
             List of regions in the file
         """
-        pass
 
 
 class BedParser(RegionParserBase):

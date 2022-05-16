@@ -26,12 +26,6 @@ class TestBedParsers:
         results = parser.parse(self.main_fp)
         assert len(results) == 30
     
-    @pytest.mark.skip(reason='Handling of negative strands undecided')
-    def test_negative_strand_flip(self, parser):
-        results = parser.parse(self.main_fp)
-        assert results[2].start == 29570
-        assert results[2].end == 14404
-
     def test_bed_parse_ignore_track_line(self, parser):
         results = parser.parse(self.track_line_fp)
         assert len(results) == 8
