@@ -11,9 +11,9 @@ SignalSegment = namedtuple('Signal', ['chromosome', 'start', 'end', 'value'])
 
 
 # TODO:
-#  * Check if flipping strands make sense.
 #  * Tqdm capabilities.
-def query(regions, signal, roi='body', flank=1000, body=None):
+def query(regions, signal, roi='start', flank=1000, body=None,
+          flip_negative=False):
     """Construct signals for given regions and region of interest.
 
     Parameters
@@ -34,6 +34,9 @@ def query(regions, signal, roi='body', flank=1000, body=None):
         Length to which the regions will be normalized to if selected
         region_part is 'body'. If None (default) body will be set to
         max(flank * 2, 1000)
+    flip_negative : bool
+        Whether to flip the signal of regions on the negative sense
+        strand.
 
     Returns
     -------
@@ -111,7 +114,7 @@ def query(regions, signal, roi='body', flank=1000, body=None):
                 reg_signal[flank] = chr_signal[l_flank_end]
             
             # Flipping regions on negative strand
-            if not region.positive_strand:
+            if flip_negative and not region.positive_strand:
                 reg_signal = np.flip(reg_signal)
             
             result[idx] = reg_signal
