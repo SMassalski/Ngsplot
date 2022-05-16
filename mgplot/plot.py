@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.interpolate import UnivariateSpline
 from matplotlib import pyplot as plt
-from matplotlib.colors import Normalize, LogNorm
+from matplotlib.colors import Normalize, LogNorm, SymLogNorm
 
 
 # PROPOSED FEATURE: Joint plot
@@ -48,7 +48,6 @@ def average_profile(x, smooth=None, fig_kw=None, **plot_kw):
 
 # TODO: Implement downsample
 # FIXME: Somtimes overflow occurs
-#   Right-most tick is not visible
 def heatmap(x, sort=False, downsample=False, colorbar=False, fig_kw=None,
             imshow_kw=None, **plot_kw):
     r"""Plot the average profile of x
@@ -219,6 +218,10 @@ def make_norm(x, norm_type='lin', drop=1e-3):
         v_min = np.nanquantile(np.where(x > 0, x, np.nan), drop)
         v_max = np.quantile(x, 1 - drop)
         norm = LogNorm(v_min, v_max, True)
+        
+    elif norm_type == 'sym_log':
+        norm = SymLogNorm(0.1, vmin=x.min(), vmax=x.max(), clip=True)
+        
     else:
         raise ValueError(f'Unrecognized norm_type {norm_type}')
         

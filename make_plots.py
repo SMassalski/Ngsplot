@@ -11,8 +11,7 @@ from mgplot.util import filter_regions
 
 
 # TODO:
-#  * Update README
-#  * Tests
+#  * main() tests
 #  * Export settings
 #  * Script help description in addition to argument helps
 #       (Write a docstring and pass __doc__ to ArgumentParser())
@@ -104,9 +103,9 @@ def get_cli_args(argv):
                         help="Title of the average profile")
     parser.add_argument('--colorbar', action='store_true',
                         help="Show a color bar next to the heatmap")
-    parser.add_argument('--h_norm', type=str,
+    parser.add_argument('--norm', type=str,
                         help="Type of norm to be used for the heatmap"
-                             " colorscale; [lin, log]; default=lin")
+                             " colorscale; [lin, log, sym_log]; default=lin")
     return parser.parse_args(argv)
 
 
@@ -166,7 +165,7 @@ def main(argv):
                                             **tick_args)
 
     if c.plot_type in ['heatmap', 'both']:
-        imshow_kw = dict(norm=make_norm(data, c.h_norm),
+        imshow_kw = dict(norm=make_norm(data, c.norm),
                          cmap=c.cmap)
         hm_fig, hm_ax = heatmap(data, sort=c.sort, colorbar=c.colorbar,
                                 title=c.hm_title, imshow_kw=imshow_kw,
@@ -223,7 +222,7 @@ class Config:
         # heatmap
         self.sort = False
         self.hm_title = None
-        self.h_norm = 'lin'
+        self.norm = 'lin'
         self.cmap = 'Reds'
         self.colorbar = False
     
