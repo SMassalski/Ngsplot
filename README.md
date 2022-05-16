@@ -1,14 +1,15 @@
 # MGPLOT
 
-MGPLOT is a script for visualizing metagenomic data.  The script generates average profiles and heatmaps of selected genomic features based on a provided bedgraph file.
+MGPLOT is a tool for visualizing genomic feature data.  The script generates average profiles and heatmaps of selected genomic features based on a provided bedgraph file.
 
 
 ## Dependencies ##
    ---
-1. Python 3.6
-2. NumPy (tested on 1.12.1)
-3. SciPy (tested on 0.19.0)
-4. Seaborn (tested on 0.7.1)
+1. Python (tested on 3.8)
+2. NumPy (tested on 1.22.3)
+3. SciPy (tested on 1.8.0)
+4. Matplotlib (tested on 3.5.1)
+5. Seaborn (tested on 0.11.2)
 
 # Usage #
   ---
@@ -22,54 +23,50 @@ MGPLOT is a script for visualizing metagenomic data.  The script generates avera
 
 5. [Detailed Feature Selection](https://github.com/SMassalski/mgplot#detailed-feature-selection)
 ## Input Options 
-| Argument              | Description                          | Default  | Values   |
-|:---------------------:|:------------------------------------:|:--------:|:--------:|
-|`-g ` `--gfile `| bed or tsv file containing information about the genomic features  |   None   | file name or path |
-|`-i` `--infile`| bedgraph file |   None   | file name or path |
-|`-gt`<br>` --gfiletype`| type of the gfile  | 'bed' | 'bed' , 'scoretsv' |
-|`-cf `<br>`--configFile`| configuration file |   None   | file name or path |
-|`-gi ` `--gindx`| indicies representing the location of fields in a bed file |   0,1,2,3,-1   | sequence of five integers |
-|`-rp ` `--replot`| numpy binary file containing a matrix to be replotted |   None   | file name or path |
+|        Argument        |                      Description                      |  Default   |          Values           |
+|:----------------------:|:-----------------------------------------------------:|:----------:|:-------------------------:|
+| `-r ` `--region_file ` |            File containing genomic regions            |    None    |     file name or path     |
+|  `-i` `--signal_file`  |          Bedgraph file containing the signal          |    None    |     file name or path     |
+| `-c ` `--config_file`  |                  Configuration file                   |    None    |     file name or path     |
+|      ` --format`       |         Format of the file containing regions         |    bed     |      bed , score_tsv      |
+|       `--replot`       | Numpy binary file containing a matrix to be replotted |    None    |     file name or path     |
 
-**Input files cannot have headers.**
 
 **Console arguments override configuration file arguments**
 
-For the configuration file to be read correctly it should have only two columns separated by TAB. In each row the first column is the argument, the second is the value.
-When an argument can take multiple values such as in `--chrmomit` and `-gomit` the values should be in the second column separated by commas.
+For the configuration file to be read correctly it should have only two whitespace separated columns. In each row the first column is the argument, the second is the value.
+When an argument can take multiple values such as in `--omit_chr` and `--omit_reg` the values should be in the second column separated by commas.
+
 Example of a correctly formatted configuration file:
 ```
-region      genebody
-plottype    both
-nticks      2
+roi         body
+plot_type   both
+n_ticks     2
 sort        true
-chrmonly    chr1,chr2,chrX
-scorerange  1000,10000
+only_chr    chr1,chr2,chrX
+min_score   1000,
+max_score   10000
 ```
 
-The `--gindx` sequence indicates in which columns in the `.bed` file the script will find information about chromosome name, start position, end position, feature name, strand respectively. 
 
-`--replot` allows you to plot previously saved data (using `--matfile`) without reading other input files again, with different plot settings. When using replot the _region_ and _flank_ arguments must remain unchanged.
+`--replot` allows you to plot previously saved data (using `--save_data`) without reading other input files again, with different plot settings. When using replot the `roi`, `body` and `flank` arguments must remain unchanged.
 
 
 ## Plot Options
-| Argument | Description| Default  | Values   |
-|:----------:|:----------:|:--------:|:--------:|
-|`-p` <br>` --plottype` | type of plot to be generated |   'avgprof'   |  'avgprof' , 'heatmap' , 'both'  |
-|`-nt` <br>`--nticks`| number of ticks on the x-axis  |   1   | a non negative integer |
-|`-cm` `--cmap`| colormap to be used when generating a heatmap   | 'Reds' | matplotlib colormap name |
-|`-s` `--sort`| whether to sort the matrix used for generating a heatmap |   False   | no value in console,  'true' or 'false' in config file |
-|`-sm`<br> `--smooth`| whether to smooth the average profile curve before ploting |   False  | boolean or a non negative float  |
-|`-hn` `--hnorm`| whether to use linear or symmetric logarithmic normalization for the colorscale  | 'lin' | 'lin' , 'log' |
-|`-ht` <br>`--hmtitle`| title of the heatmap  |   None  | string |
-|`-at` <br>`--avgtitle`| title of the average profile  |   None  | string |
-|`-cb` <br>`--cbar`| whether to show a colorbar next to the heatmap  |   False   | no value in console,<br> 'true' or 'false' in config file |
+|    Argument    |                                                     Description                                                      | Default  |                         Values                         |
+|:--------------:|:--------------------------------------------------------------------------------------------------------------------:|:--------:|:------------------------------------------------------:|
+| ` --plot_type` |                                             Type of plot to be generated                                             | avg_prof |               avg_prof , heatmap , both                |
+|  `--n_ticks`   | Number of ticks on the x-axis per plot segment (left flank, right flank and body) in addition to start and end ticks |    1     |                 a non negative integer                 |
+|    `--cmap`    |                                    Colormap to be used when generating a heatmap                                     |   Reds   |                matplotlib colormap name                |
+|    `--sort`    |                                    Sort the matrix used for generating a heatmap                                     |  False   | no value in console,  'true' or 'false' in config file |
+|   `--smooth`   |         Smoothing factor for average profile smoothing. Set to True to automatically determine based on std          |  False   |            boolean or a non negative float             |
+|    `--norm`    |        Type of normalization to use (linear, logarithmic or symmetric logarithmic) for the heatmap colorscale        |   lin    |                  lin , log , sym_log                   |
+|  `--hm_title`  |                                                 Title of the heatmap                                                 |   None   |                         string                         |
+| `--avg_title`  |                                             Title of the average profile                                             |   None   |                         string                         |
+|  `--colorbar`  |                                         Show a colorbar next to the heatmap                                          |  False   | no value in console, 'true' or 'false' in config file  |
 
 
-`--nticks` determines how many ticks surround the plotted region. For TSS and TSE *nticks* is the number of ticks on each side of the region of interest. For genebody it is the number of ticks left of TSS, between TSS and TSE (nticks-1), and right of TSE.
-For example a run with argument `--nticks 2` will generate plots with 5 ticks for TSS and TSE, and 7 ticks for genebody.
-
-When `--smooth` is set to true the curve is smoothed with a spline with a smoothing parameter equal to flank_length * 1e-4. To change the value of the smoothing parameter set the value of `--smooth` to a float.
+When `--smooth` is set to true the curve is smoothed with a spline with a smoothing parameter equal to `std(mean(input_array))/2`.
 
 Example average profile with `--smooth` set to 0.08:
 ![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/avgprof_example3a.png "smooth = 0.08")
@@ -77,74 +74,73 @@ Example average profile with `--smooth` set to 0.08:
 The same average profile with `--smooth` set to 0:
 ![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/avgprof_example3b.png "smooth = 0")
 
-Matplotlib colormap names can be found [here.](https://matplotlib.org/users/colormaps.html)
+Matplotlib colormap names can be found [here.](https://matplotlib.org/stable/gallery/color/colormap_reference.html)
 
-`--hnorm` allows you to use a logarithmic normalization when linear normalization generates a poorly visable heatmap.
+`--norm` allows you to use a logarithmic or symmetric logarithmic normalization when linear normalization generates a poorly visible heatmap.
 
-Example heatmap with `--hnorm` set to 'lin':
-![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/heatmap_example2c.png "hnorm = lin")
+Example heatmap with `--norm` set to 'lin':
+![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/heatmap_example2c.png "norm = lin")
 
-The same heatmap with `--hnorm` set to 'log':
-![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/heatmap_example2b.png "hnorm = log")
+The same heatmap with `--norm` set to 'sym_log':
+![alt text](https://github.com/SMassalski/mgplot/blob/master/Examples/heatmap_example2b.png "norm = log")
 
 ## Region Declaration
-| Argument | Description| Default  | Values   |
-|:--------:|:----------:|:--------:|:--------:|
-|`-r` `--region`| location of the genomic regions to be plotted|'TSS'| 'TSS' , 'TSE' , 'genebody'|
-|`-fl` `--flank` |length of the flanking regions|1000| positive integer|
+| Argument  |                    Description                     | Default |          Values          |
+|:---------:|:--------------------------------------------------:|:-------:|:------------------------:|
+|  `--roi`  |          Region of interest to be plotted          |  start  |    start , end , body    |
+| `--flank` |           Length of the flanking regions           |  1000   |   non-negative integer   |
+| `--body`  | Length to which genomic regions will be normalized |  None   | positive integer or none |
 
-The script will generate plots of the selected location with surrounding flanking regions.
+The script will generate plots of the selected location with surrounding flanking segments.
 
-When `--region` is set to genebody the regions will be normalized with a cubic spline to have length equal to the value of `--flank`.
+When `--roi` is set to body the regions will be normalized with a cubic spline to have length equal to the value of `--body`.
+If `--body` is set to None `max(2*flank, 1000)` will be used
 
 ## Output
-| Argument | Description| Default  | Values   |
-|:--------:|:----------:|:--------:|:--------:|
-|`-oa` `--avgfile`|average profile output file|None|file name or path|
-|`-oh` `--hmfile`|heatmap output file|None|file name or path|
-|`-om` `--matfile`|matrix output file|None|file name or path|
+|    Argument    |               Description                |       Default       |                         Values                         |
+|:--------------:|:----------------------------------------:|:-------------------:|:------------------------------------------------------:|
+| `--out_prefix` |    Prefix to be used for output files    |       mgplot        |                          str                           |
+|  `--out_dir`   |       Path of the output directory       | current working dir |                          path                          |
+| `--out_format` |       Format of plot output files        |         png         |                     png, pdf, svg                      |
+| `--save_data`  | Save data for replotting (in a npy file) |        False        | no value in console,  'true' or 'false' in config file |
 
- The format of the output file will be deduced from the extension of the provided filename. The supported formats depend on the matplotlib backend you're using. Most backends support *png, pdf, ps, eps* and *svg*. If a output filename is provided the corresponding plot will not be displayed.
  
-The `--matfile` argument allows you to save a matrix for replotting data without reading other input files again. The matrix is saved in a numpy binary file. A `.npy` extension will be appended if the provided filename does not have one.
+The `--save_data` argument allows you to save a matrix for replotting data without repeating data extraction. The matrix is saved in a numpy binary file.
  
  ## Detailed Feature Selection
-| Argument | Description| Default  | Values   |
-|:--------:|:----------:|:--------:|:--------:|
-|`-co` <br> `--chrmomit`|chromosomes to be omitted|None|chromosome names|
-|`-only`<br> `--chrmonly`|chromosomes to be considered exclusively|None|chromosome names|
-|`--go` <br>`--gomit`|genomic regions to be omitted|None|first characters of feature names|
-|`-nb`<br> `--nbest`|number of regions with the best scores to be considered (tsv files)|None|positive integer|
-|`-sr` <br>`--scorerange`|range of score values from which features should be considered (tsv file)|None| two numbers seperated by  a comma|
-|`-of`<br> `--ofirst`|whether to use only the first occurence of a region in a bed file|False|no value in console,<br> 'true' or 'false' in config file |
+|    Argument    |                                 Description                                  | Default |                        Values                         |
+|:--------------:|:----------------------------------------------------------------------------:|:-------:|:-----------------------------------------------------:|
+|  `--omit_reg`  |                        Genomic regions to be omitted                         |  None   |                     region names                      |
+|  `--omit_chr`  |                          Chromosomes to be omitted                           |  None   |                   chromosome names                    |
+|  `--only_chr`  |                   Chromosomes to be considered exclusively                   |  None   |                   chromosome names                    |
+| `--min_score`  | Lower limit (inclusive) of score values of which features will be considered |  None   |                         float                         |
+| `--max_score`  | Upper limit (inclusive) of score values of which features will be considered |  None   |                         float                         |
+| `--only_first` |         Use only the first occurrence of regions with the same name          |  False  | no value in console, 'true' or 'false' in config file |
+|   `--n_best`   |           Number of regions with the best scores to be considered            |  None   |               positive integer or none                |
 
-The `--gomit` argument makes the script omit all genomic features that **begin with** one of the given strings.
 
-The `--nbest` argument selects genes after chromosomes and genes are excluded.
+The `--n_best` argument selects genes after chromosomes and genes are excluded.
 
-When using `--scorerange` the first value should be smaller than the other. `--scorerange` overrides `--nbest`
-
-# Examples
+# Example
 ---
-### Example 1
 The configuration file (example1.cfg):
 ```
-gfile		RNAseq_counts.tsv
-infile		H3K4me3.bedgraph
-gfiletype	scoretsv
-flank 		2000
-region 		TSS
-nticks		2
-plottype 	both
-smooth		true
-matfile		out1.npy
-hnorm		log
-sort		false
-nbest		2000
+region_file RNAseq_counts.tsv
+signal_file H3K4me3.bedgraph
+format  score_tsv
+flank   2000
+region  start
+n_ticks 2
+plot_type   both
+smooth  true
+save_data   true
+norm    log
+sort    false
+n_best  2000
 ```
-Running the script will generate an average profile and heatmap of H3K4me3 enrichment around the transcripton start site on the first 2000 most expressed genes in the tsv file. The matrix will be saved for replotting as out1.npy.
+Running the script will generate an average profile and heatmap of H3K4me3 enrichment around the transcription start site on the first 2000 most expressed genes in the tsv file. The matrix will be saved for replotting as mgplot_data.npy.
 ```
-python mgplot.py -cf example1.cfg
+python make_plots.py -c example1.cfg
 ```
 The result:
 
@@ -154,7 +150,7 @@ The result:
 
 Replotting the heatmap with `--sort` set to True:
 ```
-python mgplot.py -cf example1.cfg -rp out1.npy --sort
+python make_plots.py -c example1.cfg --replot mgplot_data.npy --sort
 ```
 
 ![alt_text](https://github.com/SMassalski/mgplot/blob/master/Examples/example1/example1a.png "sorted heatmap")
